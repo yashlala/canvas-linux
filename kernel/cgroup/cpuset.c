@@ -140,6 +140,10 @@ struct cpuset {
 	 */
 	nodemask_t old_mems_allowed;
 
+
+	// This task will attempt to swap here first
+	struct swap_info_struct *preferred_swap_partition;
+
 	struct fmeter fmeter;		/* memory_pressure filter */
 
 	/*
@@ -1956,6 +1960,26 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
 
 	return 0;
 }
+
+void set_current_cpuset_preferred_swap(struct swap_info_struct *si)
+{
+	rcu_read_lock(); // Do I need the RCU here?
+	task_cs(current)->preferred_swap_partition = si;
+	rcu_read_unlock();
+}
+
+
+struct swap_info_struct *current_cpuset_preferred_swap(void)
+{
+	struct swap_info_struct *ret;
+
+	rcu_read_lock(); // Do I need RCU here?
+	ret = task_cs(current)->preferred_swap_partition;
+	rcu_read_unlock();
+
+	return ret;
+}
+
 
 /**
  * update_tasks_flags - update the spread flags of tasks in the cpuset.
