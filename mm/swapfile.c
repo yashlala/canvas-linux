@@ -19,6 +19,7 @@
 #include <linux/pagemap.h>
 #include <linux/namei.h>
 #include <linux/shmem_fs.h>
+#include <linux/cpuset.h>
 #include <linux/blk-cgroup.h>
 #include <linux/random.h>
 #include <linux/writeback.h>
@@ -1040,6 +1041,8 @@ static void swap_free_cluster(struct swap_info_struct *si, unsigned long idx)
 	swap_range_free(si, offset, SWAPFILE_CLUSTER);
 }
 
+atomic_t use_isolated_swap = ATOMIC_INIT(0); // Yash TODO
+
 int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 {
 	unsigned long size = swap_entry_size(entry_size);
@@ -1051,7 +1054,7 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 	/* Only single cluster request supported */
 	WARN_ON_ONCE(n_goal > 1 && size == SWAPFILE_CLUSTER);
 
-	spin_lock(&swap_avail_lock);
+	spin_lock(&swap_avail_lock); // Q4Yifan: Removed in Canvas? Why?
 
 	avail_pgs = atomic_long_read(&nr_swap_pages) / size;
 	if (avail_pgs <= 0) {
@@ -1063,11 +1066,38 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 
 	atomic_long_sub(n_goal * size, &nr_swap_pages);
 
+	if (atomic_read(&use_isolated_swap)) {
+		// si = current_cpuset_preferred_swap(); 
+		// TODO: This used to be a scan_isolated_swap_map_slots call 
+		// in Canvas 5.4. But the method body has changed significantly. 
+		// Rather than try to figure out every single change, just
+		// "reimplement" canvas; in that we try to scan this swap map first. 
+		si = cpuset_current_preferred_swap(); 
+		n_ret = scan_swap_map_slots(si, SWAP_HAS_CACHE, n_goal, swp_entries);
+		if (n_ret) {
+			goto check_out;
+		} 
+#if defined(DEBUG_SWAP_ISOLATION)
+		else {
+			pr_info("%s, cpu %d request swap entires %lu from " 
+					"isolated swap partition failed ! GOTO shared swap partition",
+				__func__, (int) smp_processor_id(),
+				n_goal * size);
+		}
+#endif
+	}
+
 start_over:
 	node = numa_node_id();
 	plist_for_each_entry_safe(si, next, &swap_avail_heads[node], avail_lists[node]) {
 		/* requeue si to after same-priority siblings */
 		plist_requeue(&si->avail_lists[node], &swap_avail_heads[node]);
+#if defined(DEBUG_SWAP_ISOLATION)
+		pr_info("%s, cpu %d get swap partition from NUMA node %d, "
+				"swap_struct_info 0x%lx, priority %d \n",
+			__func__, smp_processor_id(), node, (size_t)si,
+			(int)si->prio);
+#endif
 		spin_unlock(&swap_avail_lock);
 		spin_lock(&si->lock);
 		if (!si->highest_bit || !(si->flags & SWP_WRITEOK)) {
