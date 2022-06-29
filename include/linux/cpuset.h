@@ -79,6 +79,8 @@ extern nodemask_t cpuset_mems_allowed(struct task_struct *p);
 #define cpuset_current_mems_allowed (current->mems_allowed)
 void cpuset_init_current_mems_allowed(void);
 int cpuset_nodemask_valid_mems_allowed(nodemask_t *nodemask);
+// TODO: Set on the other side of the ifdef!
+// (ie: ifndef CONFIG_CPUSETS)
 extern struct swap_info_struct *cpuset_preferred_swap(struct task_struct *p); 
 extern void cpuset_set_preferred_swap(struct task_struct *p, 
 		struct swap_info_struct *si); 
