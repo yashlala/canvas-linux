@@ -1961,22 +1961,22 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
 	return 0;
 }
 
-void set_current_cpuset_preferred_swap(struct swap_info_struct *si)
+void cpuset_set_preferred_swap(struct task_struct *p, struct swap_info_struct *si)
 {
 	// Do I need the RCU here? TODO: How is this struct locked?
 	rcu_read_lock(); 
-	task_cs(current)->preferred_swap_partition = si;
+	task_cs(p)->preferred_swap_partition = si;
 	rcu_read_unlock();
 }
 
 
-struct swap_info_struct *current_cpuset_preferred_swap(void)
+struct swap_info_struct *cpuset_preferred_swap(struct task_struct *p)
 {
 	struct swap_info_struct *ret;
 
 	// Do I need the RCU here? TODO: How is this struct locked?
 	rcu_read_lock(); 
-	ret = task_cs(current)->preferred_swap_partition;
+	ret = task_cs(p)->preferred_swap_partition;
 	rcu_read_unlock();
 
 	return ret;
