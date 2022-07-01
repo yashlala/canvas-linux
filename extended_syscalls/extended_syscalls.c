@@ -1,11 +1,20 @@
 #include <linux/extended_syscalls.h> 
+#include <linux/cpuset.h> 
 
-SYSCALL_DEFINE0(set_cgroup_swap, int __user *, swap_info_struct_number)
+SYSCALL_DEFINE1(isolate_swap, int, enable)
 {
-    return 0; // TODO: Do the things
+    // __isolate_swap(); 
+    return 0; 
 }
 
-SYSCALL_DEFINE3(get_cgroup_swap, int __user *, swap_info_struct_number)
+SYSCALL_DEFINE1(set_cgroup_swap, int __user *, swap_info_struct_num)
 {
-    return 0; // TODO: Do the things
+    // __set_cgroup_swap(); 
+    return 0; 
+}
+
+SYSCALL_DEFINE1(get_cgroup_swap, int __user *, swap_info_struct_num)
+{
+    // __get_cgroup_swap(); 
+    return 0; 
 }
