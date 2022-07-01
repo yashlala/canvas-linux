@@ -375,9 +375,9 @@
 
 # [Yash]
 # Temporary syscalls for per-cgroup swap. Remove later. 
-451	common	isolate_swap		__x64_sys_isolate_swap
-452	common	set_cgroup_swap		__x64_sys_set_cgroup_swap
-453	common	get_cgroup_swap		__x64_sys_get_cgroup_swap
+451	common	isolate_swap		sys_isolate_swap
+452	common	set_cgroup_swap		sys_set_cgroup_swap
+453	common	get_cgroup_swap		sys_get_cgroup_swap
 
 #
 # Due to a historical design error, certain syscalls are numbered differently
