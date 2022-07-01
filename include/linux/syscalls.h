@@ -1385,4 +1385,8 @@ int __sys_getsockopt(int fd, int level, int optname, char __user *optval,
 		int __user *optlen);
 int __sys_setsockopt(int fd, int level, int optname, char __user *optval,
 		int optlen);
+
+asmlinkage long sys_set_cgroup_swap(int __user *swap_info_struct_num); 
+asmlinkage long sys_get_cgroup_swap(int __user *swap_info_struct_num); 
+
 #endif
