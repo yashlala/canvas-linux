@@ -1055,7 +1055,8 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 	WARN_ON_ONCE(n_goal > 1 && size == SWAPFILE_CLUSTER);
 
 	// TODO: HEY! HEY! WE KEEP THIS LOCKED DURING OUR SCAN SWAP MAP SLOTS!
-	// DON'T DO THAT! DEADLOCK!
+	// DON'T DO THAT! DEADLOCK! Also, maybe we should still hold swap_lock
+	// here? 
 	spin_lock(&swap_avail_lock); // Q4Yifan: Removed in Canvas? Why?
 
 	avail_pgs = atomic_long_read(&nr_swap_pages) / size;
@@ -1068,10 +1069,6 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 
 	atomic_long_sub(n_goal * size, &nr_swap_pages);
 
-	// TODO: This used to be a scan_isolated_swap_map_slots call 
-	// in Canvas 5.4. But the method body has changed significantly. 
-	// Rather than try to figure out every single change, just
-	// "reimplement" canvas; in that we try to scan this swap map first. 
 	if (atomic_read(&use_isolated_swap)) {
 		si = cpuset_get_current_preferred_swap(); 
 		spin_unlock(&swap_avail_lock); 
