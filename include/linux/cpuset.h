@@ -81,10 +81,10 @@ void cpuset_init_current_mems_allowed(void);
 int cpuset_nodemask_valid_mems_allowed(nodemask_t *nodemask);
 // TODO: Set on the other side of the ifdef!
 // (ie: ifndef CONFIG_CPUSETS)
-extern struct swap_info_struct *cpuset_preferred_swap(struct task_struct *p); 
+extern struct swap_info_struct *cpuset_get_preferred_swap(struct task_struct *p); 
 extern void cpuset_set_preferred_swap(struct task_struct *p, 
 		struct swap_info_struct *si); 
-#define cpuset_current_preferred_swap() cpuset_preferred_swap(current)
+#define cpuset_get_current_preferred_swap() cpuset_get_preferred_swap(current)
 #define cpuset_set_current_preferred_swap(si) cpuset_preferred_swap(current, si)
 
 extern bool __cpuset_node_allowed(int node, gfp_t gfp_mask);

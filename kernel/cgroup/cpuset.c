@@ -1970,7 +1970,7 @@ void cpuset_set_preferred_swap(struct task_struct *p, struct swap_info_struct *s
 }
 
 
-struct swap_info_struct *cpuset_preferred_swap(struct task_struct *p)
+struct swap_info_struct *cpuset_get_preferred_swap(struct task_struct *p)
 {
 	struct swap_info_struct *ret;
 
