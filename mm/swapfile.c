@@ -1054,6 +1054,8 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 	/* Only single cluster request supported */
 	WARN_ON_ONCE(n_goal > 1 && size == SWAPFILE_CLUSTER);
 
+	// TODO: HEY! HEY! WE KEEP THIS LOCKED DURING OUR SCAN SWAP MAP SLOTS!
+	// DON'T DO THAT! DEADLOCK!
 	spin_lock(&swap_avail_lock); // Q4Yifan: Removed in Canvas? Why?
 
 	avail_pgs = atomic_long_read(&nr_swap_pages) / size;
@@ -1066,17 +1068,20 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 
 	atomic_long_sub(n_goal * size, &nr_swap_pages);
 
+	// TODO: This used to be a scan_isolated_swap_map_slots call 
+	// in Canvas 5.4. But the method body has changed significantly. 
+	// Rather than try to figure out every single change, just
+	// "reimplement" canvas; in that we try to scan this swap map first. 
 	if (atomic_read(&use_isolated_swap)) {
-		// si = current_cpuset_preferred_swap(); 
-		// TODO: This used to be a scan_isolated_swap_map_slots call 
-		// in Canvas 5.4. But the method body has changed significantly. 
-		// Rather than try to figure out every single change, just
-		// "reimplement" canvas; in that we try to scan this swap map first. 
-		si = cpuset_current_preferred_swap(); 
+		si = cpuset_get_current_preferred_swap(); 
+		spin_unlock(&swap_avail_lock); 
+
+		spin_lock(&si->lock);
 		n_ret = scan_swap_map_slots(si, SWAP_HAS_CACHE, n_goal, swp_entries);
 		if (n_ret) {
 			goto check_out;
 		} 
+		spin_unlock(&si->lock); 
 #if defined(DEBUG_SWAP_ISOLATION)
 		else {
 			pr_info("%s, cpu %d request swap entires %lu from " 
@@ -1085,6 +1090,8 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 				n_goal * size);
 		}
 #endif
+
+		spin_lock(&swap_avail_lock); 
 	}
 
 start_over:
