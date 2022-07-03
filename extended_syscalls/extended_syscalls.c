@@ -48,19 +48,19 @@ SYSCALL_DEFINE1(get_cgroup_swap, int __user *, swap_info_struct_num)
     spin_lock(&swap_lock); 
 
     si = cpuset_get_current_preferred_swap(); // <-does it need lock? RCU? 
-    spin_lock_irqsave(&si->lock, flags); 
     if (si == NULL) { 
         pr_warn("Ran get_cgroup_swap, retrieved null pointer\n");
         goto err; 
     }
-    ret = si->type; 
 
+    spin_lock_irqsave(&si->lock, flags); 
+    ret = si->type; 
     spin_unlock_irqrestore(&si->lock, flags); 
+
     spin_unlock(&swap_lock); 
-    return 0; 
+    return ret; 
 
 err: 
-    spin_unlock_irqrestore(&si->lock, flags); 
     spin_unlock(&swap_lock); 
     return -ENODATA; 
 }
