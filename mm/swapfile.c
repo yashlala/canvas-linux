@@ -1070,28 +1070,6 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 
 	atomic_long_sub(n_goal * size, &nr_swap_pages);
 
-	if (atomic_read(&use_isolated_swap)) {
-		si = cpuset_get_current_preferred_swap(); 
-		spin_unlock(&swap_avail_lock); 
-
-		spin_lock(&si->lock);
-		n_ret = scan_swap_map_slots(si, SWAP_HAS_CACHE, n_goal, swp_entries);
-		if (n_ret) {
-			goto check_out;
-		} 
-		spin_unlock(&si->lock); 
-#if defined(DEBUG_SWAP_ISOLATION)
-		else {
-			pr_info("%s, cpu %d request swap entires %lu from " 
-					"isolated swap partition failed ! GOTO shared swap partition",
-				__func__, (int) smp_processor_id(),
-				n_goal * size);
-		}
-#endif
-
-		spin_lock(&swap_avail_lock); 
-	}
-
 start_over:
 	node = numa_node_id();
 	plist_for_each_entry_safe(si, next, &swap_avail_heads[node], avail_lists[node]) {
