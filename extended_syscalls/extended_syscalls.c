@@ -39,28 +39,6 @@ SYSCALL_DEFINE1(set_cgroup_swap, int __user *, swap_info_struct_num)
 // This function almost certainly gets locking wrong. 
 SYSCALL_DEFINE1(get_cgroup_swap, int __user *, swap_info_struct_num)
 {
-    struct swap_info_struct *si; 
-    unsigned long flags; 
-    int ret; 
-
-    pr_warn("get syscall called.\n"); 
-
-    spin_lock(&swap_lock); 
-
-    si = cpuset_get_current_preferred_swap(); // <-does it need lock? RCU? 
-    if (si == NULL) { 
-        pr_warn("Ran get_cgroup_swap, retrieved null pointer\n");
-        goto err; 
-    }
-
-    spin_lock_irqsave(&si->lock, flags); 
-    ret = si->type; 
-    spin_unlock_irqrestore(&si->lock, flags); 
-
-    spin_unlock(&swap_lock); 
-    return ret; 
-
-err: 
-    spin_unlock(&swap_lock); 
-    return -ENODATA; 
+    pr_warn("get_cgroup_swap syscall called.\n"); 
+    return cpuset_get_current_preferred_swap();
 }

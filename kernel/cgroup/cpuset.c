@@ -22,6 +22,7 @@
  *  distribution for more details.
  */
 
+#include <linux/swap.h>
 #include <linux/cpu.h>
 #include <linux/cpumask.h>
 #include <linux/cpuset.h>
@@ -1969,15 +1970,41 @@ void cpuset_set_preferred_swap(struct task_struct *p, struct swap_info_struct *s
 	rcu_read_unlock();
 }
 
-
-struct swap_info_struct *cpuset_get_preferred_swap(struct task_struct *p)
+int cpuset_get_preferred_swap(struct task_struct *p)
 {
-	struct swap_info_struct *ret;
+	struct cgroup_subsys_state *css; 
+	struct cpuset *cs; 
+	char *cgrp_name; 
+	struct swap_info_struct *si; 
+	int ret; 
 
-	// Do I need the RCU here? TODO: How is this struct locked?
+	cgrp_name = kmalloc(NAME_MAX + 1, GFP_KERNEL);
+	if (!cgrp_name)
+		return -ENOMEM;
+
+	task_lock(p); 
+	cpuset_read_lock(); 
 	rcu_read_lock(); 
-	ret = task_cs(p)->preferred_swap_partition;
-	rcu_read_unlock();
+	css = task_css(current, cpuset_cgrp_id);  
+	css_get(css);
+
+	cgroup_name(css->cgroup, cgrp_name, NAME_MAX + 1); 
+
+	cs = css_cs(css); 
+	si = cs->preferred_swap_partition; 
+	if (si == NULL) 
+		 ret = -ENODATA; 
+	else
+		 ret = cs->preferred_swap_partition->type; 
+
+	css_put(css); 
+	rcu_read_unlock(); 
+	cpuset_read_unlock(); 
+	task_unlock(p); 
+
+	kfree(cgrp_name); 
+
+	printk("shoop: cgroup %s has swap id %d\n", cgrp_name, ret); 
 
 	return ret;
 }
