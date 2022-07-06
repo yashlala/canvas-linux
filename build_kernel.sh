@@ -121,6 +121,15 @@ then
 	sleep 1
 	make LOCALVERSION="${LocalVersion}"  -j${num_core}
 
+elif [ "${op}" = "debugbuild" ]; then 
+	echo "make oldconfig"
+	sleep 1
+	make oldconfig
+
+	echo "make LOCALVERSION=${LocalVersion} KCFLAGS=-ggdb3 -j${num_core}"
+	sleep 1
+	make LOCALVERSION="${LocalVersion}" "KCFLAGS=-ggdb3"  -j${num_core}
+
 elif [ "${op}" = "install" ]
 then
 	delete_old_kernel_contents
