@@ -16,7 +16,7 @@ function synchronize_code () {
 
 function build_kernel () { 
 	show_latest_commit | tee build.log
-	./build_kernel.sh builddebug 2>&1 | tee -a build.log
+	./build_kernel.sh debugbuild 2>&1 | tee -a build.log
 }
 
 function install_kernel () { 
