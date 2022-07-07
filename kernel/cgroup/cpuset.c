@@ -2004,7 +2004,7 @@ int cpuset_get_preferred_swap(struct task_struct *p)
 
 	kfree(cgrp_name); 
 
-	printk("shoop: cgroup %s has swap id %d\n", cgrp_name, ret); 
+	pr_warn("shoop: cgroup %s has swap id %d\n", cgrp_name, ret); 
 
 	return ret;
 }
