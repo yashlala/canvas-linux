@@ -1970,17 +1970,24 @@ void cpuset_set_preferred_swap(struct task_struct *p, struct swap_info_struct *s
 }
 
 
+#pragma GCC push_options
+#pragma GCC optimize("O0")
 struct swap_info_struct *cpuset_get_preferred_swap(struct task_struct *p)
 {
+	struct cpuset *cpuset; 
 	struct swap_info_struct *ret;
 
 	// Do I need the RCU here? TODO: How is this struct locked?
 	rcu_read_lock(); 
-	ret = task_cs(p)->preferred_swap_partition;
+	cpuset = task_cs(p); 
+	pr_warn("pid: %ld\t&cpuset: %px\tpref_swap: %px\n", 
+			(long) current->pid, &cpuset, cpuset->preferred_swap_partition); 
+	ret = cpuset->preferred_swap_partition;
 	rcu_read_unlock();
 
 	return ret;
 }
+#pragma GCC pop_options
 
 
 /**
