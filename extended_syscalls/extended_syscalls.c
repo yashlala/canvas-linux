@@ -16,21 +16,13 @@ SYSCALL_DEFINE1(isolate_swap, int, enable)
     return 0; 
 }
 
-SYSCALL_DEFINE1(set_cgroup_swap, int __user *, swap_info_struct_num)
+SYSCALL_DEFINE1(set_cgroup_swap, int, swap_info_struct_num)
 {
-    int si_index; 
-
-    pr_warn("set_cgroup_swap: enter syscall.\n"); 
-
-    if (!copy_from_user(&si_index, swap_info_struct_num, sizeof(si_index))) {
-        pr_warn("set_cgroup_swap: couldn't copy from userspace\n");
-        pr_warn("set_cgroup_swap: exit syscall.\n"); 
-        return -EFAULT; 
-    }
-    pr_warn("set_cgroup_swap: received %d from user.\n", si_index); 
+    pr_warn("set_cgroup_swap: enter syscall with parameter %d.\n", 
+            swap_info_struct_num); 
 
     spin_lock(&swap_lock); 
-    cpuset_set_current_preferred_swap(swap_info[si_index]); // <-does it need lock? RCU? 
+    cpuset_set_current_preferred_swap(swap_info[swap_info_struct_num]); // <-does it need lock? RCU? 
     spin_unlock(&swap_lock); 
 
     pr_warn("set_cgroup_swap: exit syscall.\n"); 
