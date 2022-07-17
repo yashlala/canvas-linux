@@ -25,7 +25,7 @@ SYSCALL_DEFINE1(set_cgroup_swap, int __user *, swap_info_struct_num)
     spin_lock(&swap_lock); 
     if (copy_from_user(&si_index, swap_info_struct_num, sizeof(si_index))
             != sizeof(si_index)) { 
-        pr_warn("Ran get_cgroup_swap, retrieved null pointer\n");
+        pr_warn("get_cgroup_swap received a null pointer from user, aborting\n");
         spin_unlock(&swap_lock); 
         return -ENODATA; 
     }
