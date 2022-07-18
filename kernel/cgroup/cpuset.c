@@ -1964,9 +1964,14 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
 
 void cpuset_set_preferred_swap(struct task_struct *p, struct swap_info_struct *si)
 {
-	// Do I need the RCU here? TODO: How is this struct locked?
+	struct cpuset *cpuset; 
+
 	rcu_read_lock(); 
-	task_cs(p)->preferred_swap_partition = si;
+	cpuset = task_cs(p); 
+	pr_warn("setter\tpid: %ld\t&cpuset: %px\t"
+			"old_pref_swap: %px\tnew_pref_swap: %px\n", 
+			(long) current->pid, cpuset, cpuset->preferred_swap_partition, si); 
+	cpuset->preferred_swap_partition = si;
 	rcu_read_unlock();
 }
 
@@ -1985,6 +1990,7 @@ int cpuset_get_preferred_swap(struct task_struct *p)
 	task_lock(p); 
 	cpuset_read_lock(); 
 	rcu_read_lock(); 
+
 	css = task_css(current, cpuset_cgrp_id);  
 	css_get(css);
 
@@ -1997,18 +2003,19 @@ int cpuset_get_preferred_swap(struct task_struct *p)
 	else
 		 ret = cs->preferred_swap_partition->type; 
 
+	pr_warn("cpuset_get_preferred_swap: cgroup %s has swap id %d\n", cgrp_name, ret); 
+	pr_warn("cpuset_get_preferred_swap\tpid: %ld\tcpuset: %px\tpref_swap: %px\n", 
+			(long) current->pid, cs, cs->preferred_swap_partition); 
+
 	css_put(css); 
+
 	rcu_read_unlock(); 
 	cpuset_read_unlock(); 
 	task_unlock(p); 
 
 	kfree(cgrp_name); 
-
-	pr_warn("shoop: cgroup %s has swap id %d\n", cgrp_name, ret); 
-
 	return ret;
 }
-
 
 /**
  * update_tasks_flags - update the spread flags of tasks in the cpuset.
