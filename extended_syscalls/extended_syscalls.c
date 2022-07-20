@@ -51,6 +51,6 @@ SYSCALL_DEFINE1(get_cgroup_swap, int __user *, swap_info_struct_num)
         pr_warn("get_cgroup_swap: returning, no match\n"); 
         return -EAGAIN; 
     }
-    pr_warn("get_cgroup_swap: returning, match\n"); 
+    pr_warn("get_cgroup_swap: returning w/ match %d\n", ret); 
     return ret; 
 }
