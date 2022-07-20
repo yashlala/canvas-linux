@@ -32,6 +32,25 @@ SYSCALL_DEFINE1(set_cgroup_swap, int, swap_info_struct_num)
 // This function almost certainly gets locking wrong. 
 SYSCALL_DEFINE1(get_cgroup_swap, int __user *, swap_info_struct_num)
 {
-    pr_warn("get_cgroup_swap syscall called.\n"); 
-    return cpuset_get_current_preferred_swap();
+    int ret; 
+    struct swap_info_struct *preferred; 
+
+    preferred = cpuset_get_current_preferred_swap(); 
+    pr_warn("get_cgroup_swap: preferred=%px.\n", preferred); 
+
+    for (ret=0; ret < MAX_SWAPFILES; ret++) { 
+        pr_warn("get_cgroup_swap: i=%d, swap_info[i]=%px\n", 
+                ret, swap_info[ret]); 
+        if (swap_info[ret] == preferred) { 
+            pr_warn("get_cgroup_swap: match!\n"); 
+            break; 
+        }
+    }
+
+    if (ret == MAX_SWAPFILES) { 
+        pr_warn("get_cgroup_swap: returning, no match\n"); 
+        return -EAGAIN; 
+    }
+    pr_warn("get_cgroup_swap: returning, match\n"); 
+    return ret; 
 }

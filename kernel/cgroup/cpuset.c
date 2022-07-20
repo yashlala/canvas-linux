@@ -1975,17 +1975,16 @@ void cpuset_set_preferred_swap(struct task_struct *p, struct swap_info_struct *s
 	rcu_read_unlock();
 }
 
-int cpuset_get_preferred_swap(struct task_struct *p)
+struct swap_info_struct *cpuset_get_preferred_swap(struct task_struct *p)
 {
 	struct cgroup_subsys_state *css; 
 	struct cpuset *cs; 
+	struct swap_info_struct *ret; 
 	char *cgrp_name; 
-	struct swap_info_struct *si; 
-	int ret; 
 
 	cgrp_name = kmalloc(NAME_MAX + 1, GFP_KERNEL);
 	if (!cgrp_name)
-		return -ENOMEM;
+		return NULL; 
 
 	task_lock(p); 
 	cpuset_read_lock(); 
@@ -1997,14 +1996,11 @@ int cpuset_get_preferred_swap(struct task_struct *p)
 	cgroup_name(css->cgroup, cgrp_name, NAME_MAX + 1); 
 
 	cs = css_cs(css); 
-	si = cs->preferred_swap_partition; 
-	if (si == NULL) 
-		 ret = -ENODATA; 
-	else
-		 ret = cs->preferred_swap_partition->type; 
+	ret = cs->preferred_swap_partition; 
 
-	pr_warn("cpuset_get_preferred_swap: cgroup %s has swap id %d\n", cgrp_name, ret); 
-	pr_warn("cpuset_get_preferred_swap\tpid: %ld\tcpuset: %px\tpref_swap: %px\n", 
+	pr_warn("cpuset_get_preferred_swap: cgroup %s has swap partition %px\n",
+			cgrp_name, ret); 
+	pr_warn("cpuset_get_preferred_swap\tpid: %ld\tcpuset: %px\tprev_swap: %px\n", 
 			(long) current->pid, cs, cs->preferred_swap_partition); 
 
 	css_put(css); 
