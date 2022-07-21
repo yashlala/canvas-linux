@@ -1042,7 +1042,7 @@ static void swap_free_cluster(struct swap_info_struct *si, unsigned long idx)
 	swap_range_free(si, offset, SWAPFILE_CLUSTER);
 }
 
-atomic_t use_isolated_swap = ATOMIC_INIT(0); // Yash TODO
+atomic_t use_isolated_swap = ATOMIC_INIT(0);
 
 int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 {
@@ -1056,8 +1056,8 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 	WARN_ON_ONCE(n_goal > 1 && size == SWAPFILE_CLUSTER);
 
 	// TODO: HEY! HEY! WE KEEP THIS LOCKED DURING OUR SCAN SWAP MAP SLOTS!
-	// DON'T DO THAT! DEADLOCK! Also, maybe we should still hold swap_lock
-	// here? 
+	// DON'T DO THAT! COULD IT CAUSE A DEADLOCK?
+	// Really, need to figure out all locking...
 	spin_lock(&swap_avail_lock); // Q4Yifan: Removed in Canvas? Why?
 
 	avail_pgs = atomic_long_read(&nr_swap_pages) / size;
@@ -1070,6 +1070,29 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 
 	atomic_long_sub(n_goal * size, &nr_swap_pages);
 
+	if (atomic_read(&use_isolated_swap)) {
+		si = cpuset_get_current_preferred_swap();
+		if (si == NULL)
+			 goto start_over;
+
+		spin_unlock(&swap_avail_lock);
+
+		spin_lock(&si->lock); // Overlap. Problems?
+		if (!si->highest_bit || !(si->flags & SWP_WRITEOK)) {
+			spin_unlock(&si->lock);
+			spin_lock(&swap_avail_lock);
+			goto start_over;
+		}
+
+		n_ret = scan_swap_map_slots(si, SWAP_HAS_CACHE, n_goal, swp_entries);
+		spin_unlock(&si->lock);
+		if (n_ret) {
+			goto check_out;
+		}
+
+		spin_lock(&swap_avail_lock);
+	}
+
 start_over:
 	node = numa_node_id();
 	plist_for_each_entry_safe(si, next, &swap_avail_heads[node], avail_lists[node]) {
@@ -1081,7 +1104,13 @@ start_over:
 			__func__, smp_processor_id(), node, (size_t)si,
 			(int)si->prio);
 #endif
-		spin_unlock(&swap_avail_lock);
+		spin_unlock(&swap_avail_lock); // Q4Yifan: Why isn't there a race
+					       // condition between this line and the
+					       // next one? TODO
+					       // Aha. There _is_. It's just taken care
+					       // of later (retry). But...when the
+					       // struct dealloced? What if it's
+					       // removed in the middle?
 		spin_lock(&si->lock);
 		if (!si->highest_bit || !(si->flags & SWP_WRITEOK)) {
 			spin_lock(&swap_avail_lock);
