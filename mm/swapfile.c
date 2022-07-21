@@ -22,6 +22,7 @@
 #include <linux/cpuset.h>
 #include <linux/blk-cgroup.h>
 #include <linux/random.h>
+#include <linux/ktime.h>
 #include <linux/writeback.h>
 #include <linux/proc_fs.h>
 #include <linux/seq_file.h>
@@ -1051,6 +1052,11 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 	long avail_pgs;
 	int n_ret = 0;
 	int node;
+	ktime_t start_time, end_time; 
+	long delta_time_ns; 
+
+	WRITE_ONCE(start_time, ktime_get()); 
+	smp_mb(); 
 
 	/* Only single cluster request supported */
 	WARN_ON_ONCE(n_goal > 1 && size == SWAPFILE_CLUSTER);
@@ -1164,6 +1170,11 @@ check_out:
 		atomic_long_add((long)(n_goal - n_ret) * size,
 				&nr_swap_pages);
 noswap:
+	smp_mb(); 
+	WRITE_ONCE(end_time, ktime_get()); 
+	smp_wmb(); 
+	delta_time_ns = (long) ktime_to_ns(ktime_sub(end_time, start_time)); 
+	pr_warn("get_swap_pages: took %ld ns\n", delta_time_ns); 
 	return n_ret;
 }
 
