@@ -39,7 +39,6 @@
  * Aug/Sep 2004 Changed to four level page tables (Andi Kleen)
  */
 
-#include <linux/ktime.h>
 #include <linux/kernel_stat.h>
 #include <linux/mm.h>
 #include <linux/mm_inline.h>
@@ -3720,11 +3719,6 @@ vm_fault_t do_swap_page(struct vm_fault *vmf)
 	int locked;
 	vm_fault_t ret = 0;
 	void *shadow = NULL;
-	ktime_t start_time, end_time; 
-	long delta_time_ns; 
-
-	WRITE_ONCE(start_time, ktime_get()); 
-	smp_mb(); 
 
 	if (!pte_unmap_same(vmf))
 		goto out;
@@ -4005,13 +3999,6 @@ unlock:
 out:
 	if (si)
 		put_swap_device(si);
-
-	smp_mb(); 
-	WRITE_ONCE(end_time, ktime_get()); 
-	smp_wmb(); 
-	delta_time_ns = (long) ktime_to_ns(ktime_sub(end_time, start_time)); 
-	pr_warn("do_swap_page: took %ld ns\n", delta_time_ns); 
-
 	return ret;
 out_nomap:
 	pte_unmap_unlock(vmf->pte, vmf->ptl);
@@ -4025,12 +4012,6 @@ out_release:
 	}
 	if (si)
 		put_swap_device(si);
-
-	smp_mb(); 
-	WRITE_ONCE(end_time, ktime_get()); 
-	smp_wmb(); 
-	delta_time_ns = (long) ktime_to_ns(ktime_sub(end_time, start_time)); 
-	pr_warn("do_swap_page: took %ld ns\n", delta_time_ns); 
 	return ret;
 }
 
