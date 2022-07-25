@@ -41,7 +41,7 @@ SYSCALL_DEFINE1(get_cgroup_swap, int __user *, swap_info_struct_num)
     for (ret=0; ret < MAX_SWAPFILES; ret++) {
         pr_warn("get_cgroup_swap: i=%d, swap_info[i]=%px\n",
                 ret, swap_info[ret]);
-        if (swap_info[ret] == preferred) {
+        if (swap_info[ret] != NULL && swap_info[ret] == preferred) {
             pr_warn("get_cgroup_swap: match!\n");
             break;
         }
