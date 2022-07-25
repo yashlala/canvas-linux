@@ -1055,9 +1055,8 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 	/* Only single cluster request supported */
 	WARN_ON_ONCE(n_goal > 1 && size == SWAPFILE_CLUSTER);
 
-	// TODO: HEY! HEY! WE KEEP THIS LOCKED DURING OUR SCAN SWAP MAP SLOTS!
-	// DON'T DO THAT! COULD IT CAUSE A DEADLOCK?
-	// Really, need to figure out all locking...
+	// HEY! HEY! WE KEEP THIS LOCKED DURING OUR SCAN SWAP MAP SLOTS!
+	// COULD THIS CAUSE A DEADLOCK? Really, need to figure out all locking...
 	spin_lock(&swap_avail_lock); // Q4Yifan: Removed in Canvas? Why?
 
 	avail_pgs = atomic_long_read(&nr_swap_pages) / size;
@@ -1076,19 +1075,35 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 			 goto start_over;
 
 		spin_unlock(&swap_avail_lock);
+		spin_lock(&si->lock);
 
-		spin_lock(&si->lock); // Overlap. Problems?
 		if (!si->highest_bit || !(si->flags & SWP_WRITEOK)) {
 			spin_unlock(&si->lock);
+
+			WARN(!si->highest_bit,
+			     "priority swap_info %d in list but !highest_bit\n",
+			     si->type);
+			WARN(!(si->flags & SWP_WRITEOK),
+			     "priority swap_info %d in list but !SWP_WRITEOK\n",
+			     si->type);
+
 			spin_lock(&swap_avail_lock);
 			goto start_over;
 		}
+		if (size == SWAPFILE_CLUSTER) {
+			if (si->flags & SWP_BLKDEV)
+				n_ret = swap_alloc_cluster(si, swp_entries);
+		} else
+			n_ret = scan_swap_map_slots(si, SWAP_HAS_CACHE,
+						    n_goal, swp_entries);
 
-		n_ret = scan_swap_map_slots(si, SWAP_HAS_CACHE, n_goal, swp_entries);
 		spin_unlock(&si->lock);
-		if (n_ret) {
+		if (n_ret || size == SWAPFILE_CLUSTER)
 			goto check_out;
-		}
+
+		pr_debug("priority scan_swap_map of si %d failed to find offset, "
+				"continuing to global defaults\n",
+			si->type);
 
 		spin_lock(&swap_avail_lock);
 	}
