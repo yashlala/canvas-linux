@@ -1980,26 +1980,16 @@ struct swap_info_struct *cpuset_get_preferred_swap(struct task_struct *p)
 	struct cgroup_subsys_state *css;
 	struct cpuset *cs;
 	struct swap_info_struct *ret;
-	char *cgrp_name;
-
-	cgrp_name = kmalloc(NAME_MAX + 1, GFP_KERNEL);
-	if (!cgrp_name)
-		return NULL;
 
 	css = task_get_css(p, cpuset_cgrp_id);
-
-	cgroup_name(css->cgroup, cgrp_name, NAME_MAX + 1);
 	cs = css_cs(css);
 	ret = cs->preferred_swap_partition;
 
-	pr_warn("cpuset_get_preferred_swap: cgroup %s has swap partition %px\n",
-			cgrp_name, ret);
-	pr_warn("cpuset_get_preferred_swap\tpid: %ld\tcpuset: %px\tprev_swap: %px\n",
-			(long) current->pid, cs, cs->preferred_swap_partition);
+	pr_warn("cpuset_get_preferred_swap\tpid: %ld\tcpuset: %px\tswap_info_struct: %px\n",
+			(long) current->pid, cs, ret);
 
 	css_put(css);
 
-	kfree(cgrp_name);
 	return ret;
 }
 
