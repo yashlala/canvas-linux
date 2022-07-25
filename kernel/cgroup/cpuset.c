@@ -1982,12 +1982,8 @@ struct swap_info_struct *cpuset_get_preferred_swap(struct task_struct *p)
 	struct swap_info_struct *ret;
 
 	css = task_get_css(p, cpuset_cgrp_id);
-	cs = css_cs(css);
+	cs = css_cs(css); // Might not need refcount, try just `task_cs` later?
 	ret = cs->preferred_swap_partition;
-
-	pr_warn("cpuset_get_preferred_swap\tpid: %ld\tcpuset: %px\tswap_info_struct: %px\n",
-			(long) current->pid, cs, ret);
-
 	css_put(css);
 
 	return ret;
