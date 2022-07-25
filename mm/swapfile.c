@@ -1370,6 +1370,8 @@ void swap_free(swp_entry_t entry)
 /*
  * Called after dropping swapcache to decrease refcnt to swap entries.
  */
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
 void put_swap_page(struct page *page, swp_entry_t entry)
 {
 	unsigned long offset = swp_offset(entry);
@@ -1416,6 +1418,7 @@ void put_swap_page(struct page *page, swp_entry_t entry)
 	}
 	unlock_cluster_or_swap_info(si, ci);
 }
+#pragma GCC pop_options
 
 #ifdef CONFIG_THP_SWAP
 int split_swap_cluster(swp_entry_t entry)
