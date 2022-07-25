@@ -1113,19 +1113,8 @@ start_over:
 	plist_for_each_entry_safe(si, next, &swap_avail_heads[node], avail_lists[node]) {
 		/* requeue si to after same-priority siblings */
 		plist_requeue(&si->avail_lists[node], &swap_avail_heads[node]);
-#if defined(DEBUG_SWAP_ISOLATION)
-		pr_info("%s, cpu %d get swap partition from NUMA node %d, "
-				"swap_struct_info 0x%lx, priority %d \n",
-			__func__, smp_processor_id(), node, (size_t)si,
-			(int)si->prio);
-#endif
-		spin_unlock(&swap_avail_lock); // Q4Yifan: Why isn't there a race
-					       // condition between this line and the
-					       // next one? TODO
-					       // Aha. There _is_. It's just taken care
-					       // of later (retry). But...when the
-					       // struct dealloced? What if it's
-					       // removed in the middle?
+		spin_unlock(&swap_avail_lock);
+
 		spin_lock(&si->lock);
 		if (!si->highest_bit || !(si->flags & SWP_WRITEOK)) {
 			spin_lock(&swap_avail_lock);
