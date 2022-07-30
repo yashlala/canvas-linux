@@ -2905,8 +2905,11 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 	}
 	spin_unlock_irq(&callback_lock);
 
-	if (!test_bit(CGRP_CPUSET_CLONE_CHILDREN, &css->cgroup->flags))
+	if (!test_bit(CGRP_CPUSET_CLONE_CHILDREN, &css->cgroup->flags)) {
+		pr_warn("shoop: CGRP_CPUSET_CLONE_CHILDREN was not set!\n");
 		goto out_unlock;
+	}
+	pr_warn("shoop: CGRP_CPUSET_CLONE_CHILDREN was set.\n");
 
 	/*
 	 * Clone @parent's configuration if CGRP_CPUSET_CLONE_CHILDREN is
