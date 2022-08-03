@@ -1079,7 +1079,8 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 
 		if (!si->highest_bit || !(si->flags & SWP_WRITEOK)) {
 			spin_unlock(&si->lock);
-
+			// TODO: Why is this being hit so much? Something's
+			// wrong?
 			WARN(!si->highest_bit,
 			     "priority swap_info %d in list but !highest_bit\n",
 			     si->type);
