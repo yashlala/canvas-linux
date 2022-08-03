@@ -2990,7 +2990,7 @@ static void cpuset_css_offline(struct cgroup_subsys_state *css)
 		parent->child_ecpus_count--;
 	}
 
-	if (!cs->preferred_swap_partition)
+	if (cs->preferred_swap_partition)
 		 percpu_ref_put(&cs->preferred_swap_partition->users);
 
 	cpuset_dec();
