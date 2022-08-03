@@ -2875,6 +2875,8 @@ cpuset_css_alloc(struct cgroup_subsys_state *parent_css)
 	return &cs->css;
 }
 
+// Create a new CPUset from an old one (new cgroup unlocked)!
+// cgroup_mutex must be held by caller.
 static int cpuset_css_online(struct cgroup_subsys_state *css)
 {
 	struct cpuset *cs = css_cs(css);
@@ -2895,21 +2897,30 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 		set_bit(CS_SPREAD_SLAB, &cs->flags);
 
 	cpuset_inc();
-
 	spin_lock_irq(&callback_lock);
+
 	if (is_in_v2_mode()) {
 		cpumask_copy(cs->effective_cpus, parent->effective_cpus);
 		cs->effective_mems = parent->effective_mems;
 		cs->use_parent_ecpus = true;
 		parent->child_ecpus_count++;
 	}
+
+	// No swap lock needed. We worry about 2 conditions:
+	// 1) swapon/swapoff during this operation (si is broken). No worries
+	//           here, swapoff takes the cgroup_mutex.
+	// 2) parent's pointer is concurrently modified. No worries here,
+	//           cgroup modification is protected by cgroup_mutex.
+	if (parent->preferred_swap_partition)
+		percpu_ref_get(&parent->preferred_swap_partition->users);
+	smp_mb(); // TODO: Do I really need a memory barrier here?
+	WRITE_ONCE(cs->preferred_swap_partition, parent->preferred_swap_partition);
+
 	spin_unlock_irq(&callback_lock);
 
 	if (!test_bit(CGRP_CPUSET_CLONE_CHILDREN, &css->cgroup->flags)) {
-		pr_warn("shoop: CGRP_CPUSET_CLONE_CHILDREN was not set!\n");
 		goto out_unlock;
 	}
-	pr_warn("shoop: CGRP_CPUSET_CLONE_CHILDREN was set.\n");
 
 	/*
 	 * Clone @parent's configuration if CGRP_CPUSET_CLONE_CHILDREN is
@@ -2956,6 +2967,8 @@ out_unlock:
  * turning 'sched.partition" off.
  */
 
+// We're removing a cgroup. Do what we have to do.
+// See https://www.kernel.org/doc/Documentation/cgroup-v1/cgroups.txt
 static void cpuset_css_offline(struct cgroup_subsys_state *css)
 {
 	struct cpuset *cs = css_cs(css);
@@ -2976,6 +2989,9 @@ static void cpuset_css_offline(struct cgroup_subsys_state *css)
 		cs->use_parent_ecpus = false;
 		parent->child_ecpus_count--;
 	}
+
+	if (!cs->preferred_swap_partition)
+		 percpu_ref_put(&cs->preferred_swap_partition->users);
 
 	cpuset_dec();
 	clear_bit(CS_ONLINE, &cs->flags);
@@ -3027,6 +3043,7 @@ struct cgroup_subsys cpuset_cgrp_subsys = {
 	.css_alloc	= cpuset_css_alloc,
 	.css_online	= cpuset_css_online,
 	.css_offline	= cpuset_css_offline,
+	// TODO: css reset here?
 	.css_free	= cpuset_css_free,
 	.can_attach	= cpuset_can_attach,
 	.cancel_attach	= cpuset_cancel_attach,
