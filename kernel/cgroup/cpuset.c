@@ -53,6 +53,7 @@
 #include <linux/security.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
+#include <linux/plist.h>
 #include <linux/stat.h>
 #include <linux/string.h>
 #include <linux/time.h>
@@ -76,6 +77,11 @@ DEFINE_STATIC_KEY_FALSE(cpusets_enabled_key);
  * of the situation.
  */
 DEFINE_STATIC_KEY_FALSE(cpusets_insane_config_key);
+
+struct swap_avail_node {
+	struct swap_info_struct *si;
+	struct plist_node plist;
+};
 
 /* See "Frequency meter" comments, below. */
 
@@ -141,9 +147,10 @@ struct cpuset {
 	 */
 	nodemask_t old_mems_allowed;
 
-
-	// This task will attempt to swap here first
-	struct swap_info_struct *preferred_swap_partition;
+	struct swap_info_struct *preferred_swap_partition; // deprecated
+	struct plist_head swap_avail_head;
+	spinlock_t swap_avail_head_lock; // TODO: Think through locks, we
+					 // likely don't need this.
 
 	struct fmeter fmeter;		/* memory_pressure filter */
 
@@ -2868,6 +2875,9 @@ cpuset_css_alloc(struct cgroup_subsys_state *parent_css)
 	fmeter_init(&cs->fmeter);
 	cs->relax_domain_level = -1;
 
+	plist_head_init(&cs->swap_avail_head);
+	spin_lock_init(&cs->swap_avail_head_lock);
+
 	/* Set CS_MEMORY_MIGRATE for default hierarchy */
 	if (cgroup_subsys_on_dfl(cpuset_cgrp_subsys))
 		__set_bit(CS_MEMORY_MIGRATE, &cs->flags);
@@ -2883,6 +2893,7 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 	struct cpuset *parent = parent_cs(cs);
 	struct cpuset *tmp_cs;
 	struct cgroup_subsys_state *pos_css;
+	struct swap_avail_node *swap_avail, *swap_avail_parent;
 
 	if (!parent)
 		return 0;
@@ -2911,10 +2922,17 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 	//           here, swapoff takes the cgroup_mutex.
 	// 2) parent's pointer is concurrently modified. No worries here,
 	//           cgroup modification is protected by cgroup_mutex.
-	if (parent->preferred_swap_partition)
-		percpu_ref_get(&parent->preferred_swap_partition->users);
-	smp_mb(); // TODO: Do I really need a memory barrier here?
-	WRITE_ONCE(cs->preferred_swap_partition, parent->preferred_swap_partition);
+	plist_for_each_entry(swap_avail_parent, &parent->swap_avail_head, plist) {
+		swap_avail = kmalloc(sizeof(*swap_avail), GFP_NOWAIT);
+		if (!swap_avail)
+			 return -ENOMEM;
+		plist_node_init(&swap_avail->plist, swap_avail_parent->plist.prio);
+		plist_add(&swap_avail->plist, &cs->swap_avail_head);
+
+		percpu_ref_get(&swap_avail_parent->si->users);
+		smp_mb(); // TODO: Do I really need a memory barrier here?
+		WRITE_ONCE(swap_avail->si, swap_avail_parent->si);
+	}
 
 	spin_unlock_irq(&callback_lock);
 
@@ -2972,6 +2990,7 @@ out_unlock:
 static void cpuset_css_offline(struct cgroup_subsys_state *css)
 {
 	struct cpuset *cs = css_cs(css);
+	struct swap_avail_node *swap_avail_pos, *swap_avail_next;
 
 	cpus_read_lock();
 	percpu_down_write(&cpuset_rwsem);
@@ -2990,8 +3009,11 @@ static void cpuset_css_offline(struct cgroup_subsys_state *css)
 		parent->child_ecpus_count--;
 	}
 
-	if (cs->preferred_swap_partition)
-		 percpu_ref_put(&cs->preferred_swap_partition->users);
+	plist_for_each_entry_safe(swap_avail_pos, swap_avail_next, &cs->swap_avail_head, plist) {
+		percpu_ref_put(&swap_avail_pos->si->users);
+		plist_del(&swap_avail_pos->plist, &cs->swap_avail_head);
+		kfree(swap_avail_pos);
+	}
 
 	cpuset_dec();
 	clear_bit(CS_ONLINE, &cs->flags);
