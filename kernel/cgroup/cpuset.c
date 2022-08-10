@@ -23,6 +23,7 @@
  */
 
 #include <linux/swap.h>
+#include <linux/swapfile.h>
 #include <linux/cpu.h>
 #include <linux/cpumask.h>
 #include <linux/cpuset.h>
@@ -300,6 +301,7 @@ static struct cpuset top_cpuset = {
 		  (1 << CS_MEM_EXCLUSIVE)),
 	.partition_root_state = PRS_ENABLED,
 	.swap_avail_head = PLIST_HEAD_INIT(top_cpuset.swap_avail_head),
+	// TODO: Initialize lock here too. No macro exists for that right now.
 };
 
 /**
@@ -1970,16 +1972,33 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
 	return 0;
 }
 
-void cpuset_set_preferred_swap(struct task_struct *p, struct swap_info_struct *si)
+void cpuset_set_preferred_swap(struct task_struct *p, struct swap_info_struct *si, int priority)
 {
 	struct cpuset *cpuset;
+	struct swap_avail_node *sa_node;
+	unsigned long flags;
 
 	rcu_read_lock();
+
+	// Set the deprecated, pointer style preferred swap
 	cpuset = task_cs(p);
 	pr_warn("setter\tpid: %ld\t&cpuset: %px\t"
 			"old_pref_swap: %px\tnew_pref_swap: %px\n",
 			(long) current->pid, cpuset, cpuset->preferred_swap_partition, si);
 	cpuset->preferred_swap_partition = si;
+
+	// Create a the new, plist style preferred swap
+	sa_node = kmalloc(sizeof(*sa_node), GFP_NOWAIT);
+	plist_node_init(&sa_node->plist, priority);
+	sa_node->si = si;
+
+	// Append it to the preferred swap list
+	spin_lock_irqsave(&cpuset->swap_avail_head_lock, flags);
+	plist_add(&sa_node->plist, &cpuset->swap_avail_head);
+	spin_unlock_irqrestore(&cpuset->swap_avail_head_lock, flags);
+
+	percpu_ref_get(&si->users);
+
 	rcu_read_unlock();
 }
 
@@ -1987,10 +2006,24 @@ struct swap_info_struct *cpuset_get_preferred_swap(struct task_struct *p)
 {
 	struct cgroup_subsys_state *css;
 	struct cpuset *cs;
+	struct swap_avail_node *sa;
+	int si_num;
 	struct swap_info_struct *ret;
 
 	css = task_get_css(p, cpuset_cgrp_id);
 	cs = css_cs(css); // Might not need refcount, try just `task_cs` later?
+
+	if (plist_head_empty(&cs->swap_avail_head)) {
+		pr_warn("swap_avail_head empty: no preferred swap "
+				"partitions\n");
+	} else {
+		plist_for_each_entry(sa, &cs->swap_avail_head, plist) {
+			si_num = swap_info_struct_to_type(sa->si);
+			pr_warn("swap_avail head has entry %d and type %d\n",
+					si_num, sa->si->type);
+		}
+	}
+
 	ret = cs->preferred_swap_partition;
 	css_put(css);
 
@@ -3031,6 +3064,8 @@ static void cpuset_css_free(struct cgroup_subsys_state *css)
 	free_cpuset(cs);
 }
 
+// TODO: If we want to support v1 (or initialize properly),
+// then we should put everything here on the swapon.
 static void cpuset_bind(struct cgroup_subsys_state *root_css)
 {
 	percpu_down_write(&cpuset_rwsem);

@@ -10,4 +10,6 @@ extern struct swap_info_struct *swap_info[];
 extern unsigned long generic_max_swapfile_size(void);
 extern unsigned long max_swapfile_size(void);
 
+int swap_info_struct_to_type(struct swap_info_struct *si);
+
 #endif /* _LINUX_SWAPFILE_H */

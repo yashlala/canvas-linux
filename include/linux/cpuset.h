@@ -81,11 +81,11 @@ void cpuset_init_current_mems_allowed(void);
 int cpuset_nodemask_valid_mems_allowed(nodemask_t *nodemask);
 // TODO: REMEMBER the other side of the ifdef!
 // (ie: ifndef CONFIG_CPUSETS)
-extern struct swap_info_struct *cpuset_get_preferred_swap(struct task_struct *p); 
-extern void cpuset_set_preferred_swap(struct task_struct *p, 
-		struct swap_info_struct *si); 
+extern struct swap_info_struct *cpuset_get_preferred_swap(struct task_struct *p);
+extern void cpuset_set_preferred_swap(struct task_struct *p,
+		struct swap_info_struct *si, int priority);
 #define cpuset_get_current_preferred_swap() cpuset_get_preferred_swap(current)
-#define cpuset_set_current_preferred_swap(si) cpuset_set_preferred_swap(current, si)
+#define cpuset_set_current_preferred_swap(si, priority) cpuset_set_preferred_swap(current, si, priority)
 
 extern bool __cpuset_node_allowed(int node, gfp_t gfp_mask);
 
@@ -308,13 +308,13 @@ static inline bool read_mems_allowed_retry(unsigned int seq)
 
 static inline swap_info_struct *cpuset_get_preferred_swap(struct task_struct *p)
 {
-	return NULL; 
+	return NULL;
 }
 
-static inline void cpuset_set_preferred_swap(struct task_struct *p, 
-		struct swap_info_struct *si) 
+static inline void cpuset_set_preferred_swap(struct task_struct *p,
+		struct swap_info_struct *si)
 {
-	return; 
+	return;
 }
 #define cpuset_get_current_preferred_swap() cpuset_get_preferred_swap(current)
 #define cpuset_set_current_preferred_swap(si) cpuset_preferred_swap(current, si)
