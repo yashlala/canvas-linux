@@ -299,6 +299,7 @@ static struct cpuset top_cpuset = {
 	.flags = ((1 << CS_ONLINE) | (1 << CS_CPU_EXCLUSIVE) |
 		  (1 << CS_MEM_EXCLUSIVE)),
 	.partition_root_state = PRS_ENABLED,
+	.swap_avail_head = PLIST_HEAD_INIT(top_cpuset.swap_avail_head),
 };
 
 /**
