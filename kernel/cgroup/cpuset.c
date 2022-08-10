@@ -2923,6 +2923,7 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 	//           here, swapoff takes the cgroup_mutex.
 	// 2) parent's pointer is concurrently modified. No worries here,
 	//           cgroup modification is protected by cgroup_mutex.
+	// TODO: Move to our own function, we'll need to do it often.
 	plist_for_each_entry(swap_avail_parent, &parent->swap_avail_head, plist) {
 		swap_avail = kmalloc(sizeof(*swap_avail), GFP_NOWAIT);
 		if (!swap_avail)
