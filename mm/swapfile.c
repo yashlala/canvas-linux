@@ -1070,7 +1070,7 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 	atomic_long_sub(n_goal * size, &nr_swap_pages);
 
 	if (atomic_read(&use_isolated_swap)) {
-		si = cpuset_get_current_preferred_swap();
+		si = cpuset_get_preferred_swap(current);
 		if (si == NULL)
 			 goto start_over;
 
