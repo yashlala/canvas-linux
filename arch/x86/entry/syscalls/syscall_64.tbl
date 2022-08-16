@@ -374,10 +374,11 @@
 450	common	set_mempolicy_home_node	sys_set_mempolicy_home_node
 
 # [Yash]
-# Temporary syscalls for per-cgroup swap. Remove later. 
+# Temporary syscalls for per-cgroup swap. Remove later.
 451	common	isolate_swap		sys_isolate_swap
-452	common	set_cgroup_swap		sys_set_cgroup_swap
-453	common	get_cgroup_swap		sys_get_cgroup_swap
+452	common	get_cgroup_swap		sys_get_cgroup_swap
+453	common	cgroup_add_swap		sys_cgroup_add_swap
+454	common	cgroup_remove_swap	sys_cgroup_remove_swap
 
 #
 # Due to a historical design error, certain syscalls are numbered differently
