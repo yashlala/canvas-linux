@@ -1972,34 +1972,50 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
 	return 0;
 }
 
-void cpuset_set_preferred_swap(struct task_struct *p, struct swap_info_struct *si, int priority)
+void cpuset_add_swap(struct task_struct *p, struct swap_info_struct *si, int priority)
 {
 	struct cpuset *cpuset;
-	struct swap_avail_node *sa_node;
+	struct swap_avail_node *node;
 	unsigned long flags;
 
-	rcu_read_lock();
-
-	// Set the deprecated, pointer style preferred swap
-	cpuset = task_cs(p);
-	pr_warn("setter\tpid: %ld\t&cpuset: %px\t"
-			"old_pref_swap: %px\tnew_pref_swap: %px\n",
-			(long) current->pid, cpuset, cpuset->preferred_swap_partition, si);
-	cpuset->preferred_swap_partition = si;
-
 	// Create a the new, plist style preferred swap
-	sa_node = kmalloc(sizeof(*sa_node), GFP_NOWAIT);
-	plist_node_init(&sa_node->plist, priority);
-	sa_node->si = si;
+	node = kmalloc(sizeof(*node), GFP_NOWAIT);
+	plist_node_init(&node->plist, priority);
+	node->si = si;
 
 	// Append it to the preferred swap list
+	rcu_read_lock(); // needed for cpuset
+	cpuset = task_cs(p);
 	spin_lock_irqsave(&cpuset->swap_avail_head_lock, flags);
-	plist_add(&sa_node->plist, &cpuset->swap_avail_head);
+	plist_add(&node->plist, &cpuset->swap_avail_head);
+	spin_unlock_irqrestore(&cpuset->swap_avail_head_lock, flags);
+	rcu_read_unlock();
+
+	percpu_ref_get(&si->users); // TODO: Is there a race condition here?
+}
+
+void cpuset_remove_swap(struct task_struct *p, struct swap_info_struct *si)
+{
+	struct cpuset *cpuset;
+	struct swap_avail_node *node_pos, *node_tmp;
+	unsigned long flags;
+
+	rcu_read_lock(); // needed for cpuset
+
+	cpuset = task_cs(p);
+	spin_lock_irqsave(&cpuset->swap_avail_head_lock, flags);
+
+	// Search for a matching si, and remove its pointer from the list
+	plist_for_each_entry_safe(node_pos, node_tmp, &cpuset->swap_avail_head, plist) {
+		if (node_pos->si->type == si->type) {
+			plist_del(&node_pos->plist, &cpuset->swap_avail_head);
+		}
+	}
 	spin_unlock_irqrestore(&cpuset->swap_avail_head_lock, flags);
 
-	percpu_ref_get(&si->users);
-
 	rcu_read_unlock();
+
+	percpu_ref_put(&si->users);
 }
 
 struct swap_info_struct *cpuset_get_preferred_swap(struct task_struct *p)

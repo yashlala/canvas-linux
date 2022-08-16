@@ -17,16 +17,28 @@ SYSCALL_DEFINE1(isolate_swap, int, enable)
     return 0;
 }
 
-SYSCALL_DEFINE2(set_cgroup_swap, int, swap_info_struct_num, int, priority)
+SYSCALL_DEFINE2(cgroup_add_swap, int, swap_info_struct_num, int, priority)
 {
-    pr_warn("set_cgroup_swap: enter syscall with si=%d, priority=%d.\n",
+    pr_warn("add_cgroup_swap: enter syscall with si=%d, priority=%d.\n",
             swap_info_struct_num, priority);
 
     spin_lock(&swap_lock);
-    cpuset_set_current_preferred_swap(swap_info[swap_info_struct_num], priority); // <-does it need lock? RCU?
+    cpuset_add_swap(current, swap_info[swap_info_struct_num], priority); // <-does it need lock? RCU?
     spin_unlock(&swap_lock);
 
-    pr_warn("set_cgroup_swap: exit syscall.\n");
+    pr_warn("add_cgroup_swap: exit syscall.\n");
+    return 0;
+}
+
+SYSCALL_DEFINE1(cgroup_remove_swap, int, swap_info_struct_num)
+{
+    pr_warn("remove_cgroup_swap: enter syscall with si=%d.\n", swap_info_struct_num);
+
+    spin_lock(&swap_lock);
+    cpuset_remove_swap(current, swap_info[swap_info_struct_num]); // <-does it need lock? RCU?
+    spin_unlock(&swap_lock);
+
+    pr_warn("remove_cgroup_swap: exit syscall.\n");
     return 0;
 }
 
@@ -36,10 +48,10 @@ SYSCALL_DEFINE1(get_cgroup_swap, int __user *, swap_info_struct_num)
 	int ret;
 	struct swap_info_struct *preferred;
 
-	preferred = cpuset_get_current_preferred_swap();
+	preferred = cpuset_get_preferred_swap(current);
 	pr_warn("get_cgroup_swap: preferred=%px.\n", preferred);
 
-	ret = get_swap_info_struct_num(preferred);
+	ret = preferred->type;
 	if (ret >= 0) {
 		pr_warn("get_cgroup_swap: returning w/ match %d\n", ret);
 	} else {
