@@ -45,17 +45,15 @@ SYSCALL_DEFINE1(cgroup_remove_swap, int, swap_info_struct_num)
 // This function almost certainly gets locking wrong.
 SYSCALL_DEFINE0(get_cgroup_swap)
 {
-	int ret;
 	struct swap_info_struct *preferred;
 
 	preferred = cpuset_get_preferred_swap(current);
-	pr_warn("get_cgroup_swap: preferred=%px.\n", preferred);
 
-	ret = preferred->type;
-	if (ret >= 0) {
-		pr_warn("get_cgroup_swap: returning w/ match %d\n", ret);
+	pr_warn("get_cgroup_swap: returning legacy pointer\n");
+	if (preferred == NULL) {
+		return -EAGAIN;
 	} else {
-		pr_warn("get_cgroup_swap: returning, no match\n");
+		return preferred->type;
 	}
-	return ret;
+
 }
