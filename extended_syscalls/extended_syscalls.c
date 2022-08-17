@@ -42,18 +42,8 @@ SYSCALL_DEFINE1(cgroup_remove_swap, int, swap_info_struct_num)
     return 0;
 }
 
-// This function almost certainly gets locking wrong.
 SYSCALL_DEFINE0(get_cgroup_swap)
 {
-	struct swap_info_struct *preferred;
-
-	preferred = cpuset_get_preferred_swap(current);
-
-	pr_warn("get_cgroup_swap: returning legacy pointer\n");
-	if (preferred == NULL) {
-		return -EAGAIN;
-	} else {
-		return preferred->type;
-	}
-
+	cpuset_get_preferred_swap(current);
+	return 0;
 }

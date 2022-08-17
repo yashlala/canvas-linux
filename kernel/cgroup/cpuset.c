@@ -148,7 +148,6 @@ struct cpuset {
 	 */
 	nodemask_t old_mems_allowed;
 
-	struct swap_info_struct *preferred_swap_partition; // deprecated
 	struct plist_head swap_avail_head;
 	spinlock_t swap_avail_head_lock; // TODO: Think through locks, we
 					 // likely don't need this.
@@ -2018,7 +2017,7 @@ void cpuset_remove_swap(struct task_struct *p, struct swap_info_struct *si)
 	percpu_ref_put(&si->users);
 }
 
-struct swap_info_struct *cpuset_get_preferred_swap(struct task_struct *p)
+void cpuset_get_preferred_swap(struct task_struct *p)
 {
 	struct cgroup_subsys_state *css;
 	struct cpuset *cs;
@@ -2040,10 +2039,7 @@ struct swap_info_struct *cpuset_get_preferred_swap(struct task_struct *p)
 		}
 	}
 
-	ret = cs->preferred_swap_partition;
 	css_put(css);
-
-	return ret;
 }
 
 /**
