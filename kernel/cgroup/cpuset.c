@@ -2022,8 +2022,6 @@ void cpuset_get_preferred_swap(struct task_struct *p)
 	struct cgroup_subsys_state *css;
 	struct cpuset *cs;
 	struct swap_avail_node *sa;
-	int si_num;
-	struct swap_info_struct *ret;
 
 	css = task_get_css(p, cpuset_cgrp_id);
 	cs = css_cs(css); // Might not need refcount, try just `task_cs` later?
@@ -2033,9 +2031,7 @@ void cpuset_get_preferred_swap(struct task_struct *p)
 				"partitions\n");
 	} else {
 		plist_for_each_entry(sa, &cs->swap_avail_head, plist) {
-			si_num = swap_info_struct_to_type(sa->si);
-			pr_warn("swap_avail head has entry %d and type %d\n",
-					si_num, sa->si->type);
+			pr_warn("swap_avail head has type %d\n", sa->si->type);
 		}
 	}
 

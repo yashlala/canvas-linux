@@ -3728,17 +3728,3 @@ static int __init swapfile_init(void)
 	return 0;
 }
 subsys_initcall(swapfile_init);
-
-int swap_info_struct_to_type(struct swap_info_struct *si) {
-	int ret;
-	for (ret=0; ret < MAX_SWAPFILES; ret++) {
-		if (swap_info[ret] != NULL && swap_info[ret] == si) {
-			break;
-		}
-	}
-
-	if (ret == MAX_SWAPFILES) {
-		return -ENXIO;
-	}
-	return ret;
-}
