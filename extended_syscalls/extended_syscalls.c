@@ -43,7 +43,7 @@ SYSCALL_DEFINE1(cgroup_remove_swap, int, swap_info_struct_num)
 }
 
 // This function almost certainly gets locking wrong.
-SYSCALL_DEFINE1(get_cgroup_swap, int __user *, swap_info_struct_num)
+SYSCALL_DEFINE0(get_cgroup_swap)
 {
 	int ret;
 	struct swap_info_struct *preferred;
