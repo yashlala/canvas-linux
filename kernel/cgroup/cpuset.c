@@ -2433,8 +2433,10 @@ typedef enum {
 	FILE_MEMORY_MIGRATE,
 	FILE_CPULIST,
 	FILE_MEMLIST,
+	FILE_SWAPLIST,
 	FILE_EFFECTIVE_CPULIST,
 	FILE_EFFECTIVE_MEMLIST,
+	FILE_EFFECTIVE_SWAPLIST,
 	FILE_SUBPARTS_CPULIST,
 	FILE_CPU_EXCLUSIVE,
 	FILE_MEM_EXCLUSIVE,
@@ -2883,6 +2885,22 @@ static struct cftype dfl_files[] = {
 		.seq_show = cpuset_common_seq_show,
 		.private = FILE_SUBPARTS_CPULIST,
 		.flags = CFTYPE_DEBUG,
+	},
+
+	{
+		.name = "swaps",
+		.seq_show = cpuset_common_seq_show,
+		.write = cpuset_write_resmask, // TODO
+		.max_write_len = 100U, // TODO get right length from swapon
+		.private = FILE_SWAPLIST,
+		.flags = CFTYPE_NOT_ON_ROOT,
+	},
+
+	{
+		.name = "swaps.effective",
+		.seq_show = cpuset_common_seq_show, // TODO implement handler
+		.private = FILE_EFFECTIVE_SWAPLIST,
+
 	},
 
 	{ }	/* terminate */
