@@ -2889,9 +2889,9 @@ static struct cftype dfl_files[] = {
 
 	{
 		.name = "swaps",
-		.seq_show = cpuset_common_seq_show,
+		.seq_show = cpuset_common_seq_show, // TODO implement handler
 		.write = cpuset_write_resmask, // TODO
-		.max_write_len = 100U, // TODO get right length from swapon
+		.max_write_len = PATH_MAX,
 		.private = FILE_SWAPLIST,
 		.flags = CFTYPE_NOT_ON_ROOT,
 	},
