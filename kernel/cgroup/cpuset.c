@@ -2593,6 +2593,47 @@ out_unlock:
 	return retval ?: nbytes;
 }
 
+static void *cpuset_swaps_seq_start(struct seq_file *sf, loff_t *pos)
+{
+	struct cpuset *cs = css_cs(seq_css(sf));
+	struct plist_node *last_swap = plist_last(&cs->swap_avail_head);
+	struct plist_node *swap_pos;
+
+	// The `n`th offset will return the `n`th swap partition.
+	// We may want to revisit this use of offsets later to match what other
+	// kernel interfaces use.
+	plist_for_each(swap_pos, &cs->swap_avail_head) {
+		if (*pos-- == 0)
+			 return swap_pos;
+		if (swap_pos == last_swap)
+			 return NULL;
+	}
+	return NULL;
+}
+
+static void *cpuset_swaps_seq_next(struct seq_file *sf, void *v, loff_t *ppos)
+{
+	struct cpuset *cs = css_cs(seq_css(sf));
+	struct plist_node *swap_pos;
+
+	++*ppos; // seq_file interface requires constantly increasing offset.
+
+	swap_pos = plist_next((struct plist_node *) v);
+	if (swap_pos == plist_last(&cs->swap_avail_head))
+		 return NULL;
+	return swap_pos;
+}
+
+static int cpuset_swaps_seq_show(struct seq_file *seq, void *v)
+{
+	struct plist_node *swap_pos = (struct plist_node *) v;
+	struct swap_avail_node *sa = container_of(swap_pos,
+			struct swap_avail_node, plist);
+	// TODO: Print a file name instead
+	seq_printf(seq, "%d\n", sa->si->type);
+	return 0;
+}
+
 /*
  * These ascii lists should be read in a single call, by using a user
  * buffer large enough to hold the entire map.  If read in smaller
@@ -2889,8 +2930,11 @@ static struct cftype dfl_files[] = {
 
 	{
 		.name = "swaps",
-		.seq_show = cpuset_common_seq_show, // TODO implement handler
-		.write = cpuset_write_resmask, // TODO
+		.seq_show = cpuset_swaps_seq_show,
+		.seq_start = cpuset_swaps_seq_start,
+		.seq_next = cpuset_swaps_seq_next,
+		.seq_stop = NULL,
+		.write = NULL, // TODO
 		.max_write_len = PATH_MAX,
 		.private = FILE_SWAPLIST,
 		.flags = CFTYPE_NOT_ON_ROOT,
