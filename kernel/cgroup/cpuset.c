@@ -2593,7 +2593,7 @@ out_unlock:
 	return retval ?: nbytes;
 }
 
-static void *cpuset_swaps_seq_start(struct seq_file *sf, loff_t *spos)
+static void *swaps_seq_start(struct seq_file *sf, loff_t *spos)
 {
 	struct cpuset *cs = css_cs(seq_css(sf));
 	struct plist_node *last_swap = plist_last(&cs->swap_avail_head);
@@ -2612,7 +2612,7 @@ static void *cpuset_swaps_seq_start(struct seq_file *sf, loff_t *spos)
 	return NULL;
 }
 
-static void *cpuset_swaps_seq_next(struct seq_file *sf, void *v, loff_t *ppos)
+static void *swaps_seq_next(struct seq_file *sf, void *v, loff_t *ppos)
 {
 	struct cpuset *cs = css_cs(seq_css(sf));
 	struct plist_node *swap_pos = (struct plist_node *) v;
@@ -2624,7 +2624,7 @@ static void *cpuset_swaps_seq_next(struct seq_file *sf, void *v, loff_t *ppos)
 	return plist_next(swap_pos);
 }
 
-static int cpuset_swaps_seq_show(struct seq_file *seq, void *v)
+static int swaps_seq_show(struct seq_file *seq, void *v)
 {
 	struct plist_node *swap_pos = (struct plist_node *) v;
 	struct swap_avail_node *sa = container_of(swap_pos,
@@ -2634,7 +2634,7 @@ static int cpuset_swaps_seq_show(struct seq_file *seq, void *v)
 	return 0;
 }
 
-static void cpuset_swaps_seq_stop(struct seq_file *seq, void *v)
+static void swaps_seq_stop(struct seq_file *seq, void *v)
 {
 	// TODO: Add locks here
 }
@@ -2935,10 +2935,10 @@ static struct cftype dfl_files[] = {
 
 	{
 		.name = "swaps",
-		.seq_show = cpuset_swaps_seq_show,
-		.seq_start = cpuset_swaps_seq_start,
-		.seq_next = cpuset_swaps_seq_next,
-		.seq_stop = cpuset_swaps_seq_stop,
+		.seq_show = swaps_seq_show,
+		.seq_start = swaps_seq_start,
+		.seq_next = swaps_seq_next,
+		.seq_stop = swaps_seq_stop,
 		.write = NULL, // TODO
 		.max_write_len = PATH_MAX,
 		.private = FILE_SWAPLIST,
