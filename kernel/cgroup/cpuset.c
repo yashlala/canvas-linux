@@ -2593,22 +2593,21 @@ out_unlock:
 	return retval ?: nbytes;
 }
 
-static void *cpuset_swaps_seq_start(struct seq_file *sf, loff_t *pos)
+static void *cpuset_swaps_seq_start(struct seq_file *sf, loff_t *spos)
 {
 	struct cpuset *cs = css_cs(seq_css(sf));
 	struct plist_node *last_swap = plist_last(&cs->swap_avail_head);
 	struct plist_node *swap_pos;
+	loff_t pos = *spos;
 
-	// TODO: Take a lock here, once we have all that set up.
-	// Free it in the unimplemented release (NULL method) later.
+	// TODO: Locks
 
-	// Return the `pos`th swapfile in the list
+	// Seek to `spos`th swapfile in the list
 	plist_for_each(swap_pos, &cs->swap_avail_head) {
-		if (*pos == 0)
+		if (pos-- == 0)
 			 return swap_pos;
 		if (swap_pos == last_swap)
 			 return NULL;
-		pos--;
 	}
 	return NULL;
 }
