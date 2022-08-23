@@ -2598,7 +2598,6 @@ static void *cpuset_swaps_seq_start(struct seq_file *sf, loff_t *pos)
 	struct cpuset *cs = css_cs(seq_css(sf));
 	struct plist_node *last_swap = plist_last(&cs->swap_avail_head);
 	struct plist_node *swap_pos;
-	loff_t len = 0;
 
 	// TODO: Take a lock here, once we have all that set up.
 	// Free it in the unimplemented release (NULL method) later.
@@ -2632,8 +2631,7 @@ static int cpuset_swaps_seq_show(struct seq_file *seq, void *v)
 	struct swap_avail_node *sa = container_of(swap_pos,
 			struct swap_avail_node, plist);
 	// TODO: Print a file name instead
-	seq_printf(seq, "%d\n", sa->si->type); // TODO: There's a segfault
-					       // here. Jeez.
+	seq_printf(seq, "%d\n", sa->si->type);
 	return 0;
 }
 
