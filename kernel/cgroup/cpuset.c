@@ -2640,6 +2640,48 @@ static void swaps_seq_stop(struct seq_file *seq, void *v)
 }
 
 /*
+ * Handles writes to the "cpuset.swaps" file.
+ *
+ * Every write should take the form of "+/new/swap/dev" or "-/old/swap/dev".
+ * Only a single swap partition can be onlined or offlined per write, and no
+ * string stripping is done. This allows swap files with spaces in the path,
+ * and allows for more informative error messages.
+ *
+ * NOTE: Priorities are global right now. Think whether we want this.
+
+ * TODO:
+ *  - Propagate state to children. Lock children via cgroup_kn_lock_live when
+ *    implementing.
+ *  - Add the "all" command for easy activate/deactivate.
+ *  - Write should return a sensical length
+ */
+static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
+		size_t nbytes, loff_t off)
+{
+	bool enable;
+	char *swap_path;
+	long swap_index;
+
+
+	if (buf[0] == '\0' || !(buf[0] == '+' || buf[0] == '-'))
+		 return -EINVAL;
+
+	enable = buf[0] == '+';
+	swap_path = buf + 1;
+
+	if (!(swap_index = kstrtol(swap_path, 10, &swap_index)))
+		 return swap_index;
+
+	if (enable) {
+		cpuset_add_swap(current, swap_info[swap_index],
+				swap_info[swap_index]->prio);
+	} else {
+		cpuset_remove_swap(current, swap_info[swap_index]);
+	}
+	return nbytes;
+}
+
+/*
  * These ascii lists should be read in a single call, by using a user
  * buffer large enough to hold the entire map.  If read in smaller
  * chunks, there is no guarantee of atomicity.  Since the display format
@@ -2939,17 +2981,22 @@ static struct cftype dfl_files[] = {
 		.seq_start = swaps_seq_start,
 		.seq_next = swaps_seq_next,
 		.seq_stop = swaps_seq_stop,
-		.write = NULL, // TODO
-		.max_write_len = PATH_MAX,
+		.write = swaps_write,
+		.max_write_len = PATH_MAX + 1,
 		.private = FILE_SWAPLIST,
 		.flags = CFTYPE_NOT_ON_ROOT,
 	},
 
 	{
+		// TODO: Implement proper handler here.
+		// Probably will require a separate "real vs effective"
+		// plist in every cpuset structure.
 		.name = "swaps.effective",
-		.seq_show = cpuset_common_seq_show, // TODO implement handler
+		.seq_show = swaps_seq_show,
+		.seq_start = swaps_seq_start,
+		.seq_next = swaps_seq_next,
+		.seq_stop = swaps_seq_stop,
 		.private = FILE_EFFECTIVE_SWAPLIST,
-
 	},
 
 	{ }	/* terminate */
