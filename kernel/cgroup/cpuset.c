@@ -2635,6 +2635,11 @@ static int cpuset_swaps_seq_show(struct seq_file *seq, void *v)
 	return 0;
 }
 
+static void cpuset_swaps_seq_stop(struct seq_file *seq, void *v)
+{
+	// TODO: Add locks here
+}
+
 /*
  * These ascii lists should be read in a single call, by using a user
  * buffer large enough to hold the entire map.  If read in smaller
@@ -2934,7 +2939,7 @@ static struct cftype dfl_files[] = {
 		.seq_show = cpuset_swaps_seq_show,
 		.seq_start = cpuset_swaps_seq_start,
 		.seq_next = cpuset_swaps_seq_next,
-		.seq_stop = NULL,
+		.seq_stop = cpuset_swaps_seq_stop,
 		.write = NULL, // TODO
 		.max_write_len = PATH_MAX,
 		.private = FILE_SWAPLIST,
