@@ -2599,11 +2599,9 @@ static void *cpuset_swaps_seq_start(struct seq_file *sf, loff_t *pos)
 	struct plist_node *last_swap = plist_last(&cs->swap_avail_head);
 	struct plist_node *swap_pos;
 
-	// The `n`th offset will return the `n`th swap partition.
-	// We may want to revisit this use of offsets later to match what other
-	// kernel interfaces use.
+	// Return the `pos`th swapfile in the list
 	plist_for_each(swap_pos, &cs->swap_avail_head) {
-		if (*pos-- == 0)
+		if ((*pos)-- == 0)
 			 return swap_pos;
 		if (swap_pos == last_swap)
 			 return NULL;
@@ -2614,14 +2612,13 @@ static void *cpuset_swaps_seq_start(struct seq_file *sf, loff_t *pos)
 static void *cpuset_swaps_seq_next(struct seq_file *sf, void *v, loff_t *ppos)
 {
 	struct cpuset *cs = css_cs(seq_css(sf));
-	struct plist_node *swap_pos;
+	struct plist_node *swap_pos = (struct plist_node *) v;
 
-	++*ppos; // seq_file interface requires constantly increasing offset.
+	(*ppos)++; // seq_file interface requires constantly increasing offset.
 
-	swap_pos = plist_next((struct plist_node *) v);
 	if (swap_pos == plist_last(&cs->swap_avail_head))
 		 return NULL;
-	return swap_pos;
+	return plist_next(swap_pos);
 }
 
 static int cpuset_swaps_seq_show(struct seq_file *seq, void *v)
