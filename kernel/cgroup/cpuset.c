@@ -2630,7 +2630,8 @@ static int cpuset_swaps_seq_show(struct seq_file *seq, void *v)
 	struct swap_avail_node *sa = container_of(swap_pos,
 			struct swap_avail_node, plist);
 	// TODO: Print a file name instead
-	seq_printf(seq, "%d\n", sa->si->type);
+	seq_printf(seq, "%d\n", sa->si->type); // TODO: There's a segfault
+					       // here. Jeez.
 	return 0;
 }
 
