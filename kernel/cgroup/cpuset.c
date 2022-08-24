@@ -121,10 +121,12 @@ struct cpuset {
 	/* user-configured CPUs and Memory Nodes allow to tasks */
 	cpumask_var_t cpus_allowed;
 	nodemask_t mems_allowed;
+	struct plist_head swaps_allowed_head;
 
 	/* effective CPUs and Memory Nodes allow to tasks */
 	cpumask_var_t effective_cpus;
 	nodemask_t effective_mems;
+	struct plist_head effective_swaps_head;
 
 	/*
 	 * CPUs allocated to child sub-partitions (default hierarchy only)
@@ -148,9 +150,7 @@ struct cpuset {
 	 */
 	nodemask_t old_mems_allowed;
 
-	struct plist_head swap_avail_head;
-	spinlock_t swap_avail_head_lock; // TODO: Think through locks, we
-					 // likely don't need this.
+	spinlock_t swap_lock;
 
 	struct fmeter fmeter;		/* memory_pressure filter */
 
@@ -299,7 +299,7 @@ static struct cpuset top_cpuset = {
 	.flags = ((1 << CS_ONLINE) | (1 << CS_CPU_EXCLUSIVE) |
 		  (1 << CS_MEM_EXCLUSIVE)),
 	.partition_root_state = PRS_ENABLED,
-	.swap_avail_head = PLIST_HEAD_INIT(top_cpuset.swap_avail_head),
+	.swaps_allowed_head = PLIST_HEAD_INIT(top_cpuset.swaps_allowed_head),
 	// TODO: Initialize lock here too. No macro exists for that right now.
 };
 
@@ -1983,9 +1983,9 @@ static void cpuset_add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 
 	// Append it to the preferred swap list
 	rcu_read_lock(); // needed for cpuset I think
-	spin_lock_irqsave(&cpuset->swap_avail_head_lock, flags);
-	plist_add(&node->plist, &cpuset->swap_avail_head);
-	spin_unlock_irqrestore(&cpuset->swap_avail_head_lock, flags);
+	spin_lock_irqsave(&cpuset->swaps_allowed_lock, flags);
+	plist_add(&node->plist, &cpuset->swaps_allowed_head);
+	spin_unlock_irqrestore(&cpuset->swaps_allowed_lock, flags);
 	rcu_read_unlock();
 
 	percpu_ref_get(&si->users); // TODO: Is this needed?
@@ -1997,14 +1997,14 @@ static void cpuset_remove_swap(struct cpuset *cpuset, struct swap_info_struct *s
 	unsigned long flags;
 
 
-	spin_lock_irqsave(&cpuset->swap_avail_head_lock, flags);
+	spin_lock_irqsave(&cpuset->swaps_allowed_lock, flags);
 	// Search for a matching si, and remove its pointer from the list
-	plist_for_each_entry_safe(node_pos, node_tmp, &cpuset->swap_avail_head, plist) {
+	plist_for_each_entry_safe(node_pos, node_tmp, &cpuset->swaps_allowed_head, plist) {
 		if (node_pos->si->type == si->type) {
-			plist_del(&node_pos->plist, &cpuset->swap_avail_head);
+			plist_del(&node_pos->plist, &cpuset->swaps_allowed_head);
 		}
 	}
-	spin_unlock_irqrestore(&cpuset->swap_avail_head_lock, flags);
+	spin_unlock_irqrestore(&cpuset->swaps_allowed_lock, flags);
 
 	put_swap_device(si);
 }
@@ -2567,14 +2567,14 @@ out_unlock:
 static void *swaps_seq_start(struct seq_file *sf, loff_t *spos)
 {
 	struct cpuset *cs = css_cs(seq_css(sf));
-	struct plist_node *last_swap = plist_last(&cs->swap_avail_head);
+	struct plist_node *last_swap = plist_last(&cs->swaps_allowed_head);
 	struct plist_node *swap_pos;
 	loff_t pos = *spos;
 
 	// TODO: Locks
 
 	// Seek to `spos`th swapfile in the list
-	plist_for_each(swap_pos, &cs->swap_avail_head) {
+	plist_for_each(swap_pos, &cs->swaps_allowed_head) {
 		if (pos-- == 0)
 			 return swap_pos;
 		if (swap_pos == last_swap)
@@ -2590,7 +2590,7 @@ static void *swaps_seq_next(struct seq_file *sf, void *v, loff_t *ppos)
 
 	(*ppos)++; // seq_file interface requires constantly increasing offset.
 
-	if (swap_pos == plist_last(&cs->swap_avail_head))
+	if (swap_pos == plist_last(&cs->swaps_allowed_head))
 		 return NULL;
 	return plist_next(swap_pos);
 }
@@ -2621,9 +2621,9 @@ static void swaps_seq_stop(struct seq_file *seq, void *v)
  * NOTE: Priorities are global right now. Think whether we want this.
  * NOTE: Strip => can't remove swapfiles ending in a newline.
  * TODO:
+ *  - Add the "all" command for easy activate/deactivate.
  *  - Propagate state to children. Lock children via cgroup_kn_lock_live when
  *    implementing.
- *  - Add the "all" command for easy activate/deactivate.
  *  - Write should return a sensical length
  */
 static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
@@ -3012,8 +3012,8 @@ cpuset_css_alloc(struct cgroup_subsys_state *parent_css)
 	fmeter_init(&cs->fmeter);
 	cs->relax_domain_level = -1;
 
-	plist_head_init(&cs->swap_avail_head);
-	spin_lock_init(&cs->swap_avail_head_lock);
+	plist_head_init(&cs-swap_locksd);
+	spin_lock_init(&cs->swaps_allowed_lock);
 
 	/* Set CS_MEMORY_MIGRATE for default hierarchy */
 	if (cgroup_subsys_on_dfl(cpuset_cgrp_subsys))
@@ -3060,12 +3060,12 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 	// 2) parent's pointer is concurrently modified. No worries here,
 	//           cgroup modification is protected by cgroup_mutex.
 	// TODO: Move to our own function, we'll need to do it often.
-	plist_for_each_entry(swap_avail_parent, &parent->swap_avail_head, plist) {
+	plist_for_each_entry(swap_avail_parent, &parent->swaps_allowed_head, plist) {
 		swap_avail = kmalloc(sizeof(*swap_avail), GFP_NOWAIT);
 		if (!swap_avail)
 			 return -ENOMEM;
 		plist_node_init(&swap_avail->plist, swap_avail_parent->plist.prio);
-		plist_add(&swap_avail->plist, &cs->swap_avail_head);
+		plist_add(&swap_avail->plist, &cs->swaps_allowed_head);
 
 		percpu_ref_get(&swap_avail_parent->si->users);
 		smp_mb(); // TODO: Do I really need a memory barrier here?
@@ -3147,9 +3147,9 @@ static void cpuset_css_offline(struct cgroup_subsys_state *css)
 		parent->child_ecpus_count--;
 	}
 
-	plist_for_each_entry_safe(swap_avail_pos, swap_avail_next, &cs->swap_avail_head, plist) {
+	plist_for_each_entry_safe(swap_avail_pos, swap_avail_next, &cs->swaps_allowed_head, plist) {
 		percpu_ref_put(&swap_avail_pos->si->users);
-		plist_del(&swap_avail_pos->plist, &cs->swap_avail_head);
+		plist_del(&swap_avail_pos->plist, &cs->swaps_allowed_head);
 		kfree(swap_avail_pos);
 	}
 
