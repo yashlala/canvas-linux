@@ -19,27 +19,14 @@ SYSCALL_DEFINE1(isolate_swap, int, enable)
 
 SYSCALL_DEFINE2(cgroup_add_swap, int, swap_info_struct_num, int, priority)
 {
-    pr_warn("add_cgroup_swap: enter syscall with si=%d, priority=%d.\n",
-            swap_info_struct_num, priority);
-
-    spin_lock(&swap_lock);
-    cpuset_add_swap(current, swap_info[swap_info_struct_num]); // <-does it need lock? RCU?
-    spin_unlock(&swap_lock);
-
-    pr_warn("add_cgroup_swap: exit syscall.\n");
-    return 0;
+	pr_warn("Use cgroup2fs accessors instead.\n");
+	return 0;
 }
 
 SYSCALL_DEFINE1(cgroup_remove_swap, int, swap_info_struct_num)
 {
-    pr_warn("remove_cgroup_swap: enter syscall with si=%d.\n", swap_info_struct_num);
-
-    spin_lock(&swap_lock);
-    cpuset_remove_swap(current, swap_info[swap_info_struct_num]); // <-does it need lock? RCU?
-    spin_unlock(&swap_lock);
-
-    pr_warn("remove_cgroup_swap: exit syscall.\n");
-    return 0;
+	pr_warn("Use cgroup2fs accessors instead.\n");
+	return 0;
 }
 
 SYSCALL_DEFINE0(get_cgroup_swap)
