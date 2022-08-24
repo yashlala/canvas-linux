@@ -2009,27 +2009,6 @@ static void cpuset_remove_swap(struct cpuset *cpuset, struct swap_info_struct *s
 	put_swap_device(si);
 }
 
-void cpuset_get_preferred_swap(struct task_struct *p)
-{
-	struct cgroup_subsys_state *css;
-	struct cpuset *cs;
-	struct swap_avail_node *sa;
-
-	css = task_get_css(p, cpuset_cgrp_id);
-	cs = css_cs(css); // Might not need refcount, try just `task_cs` later?
-
-	if (plist_head_empty(&cs->swap_avail_head)) {
-		pr_warn("swap_avail_head empty: no preferred swap "
-				"partitions\n");
-	} else {
-		plist_for_each_entry(sa, &cs->swap_avail_head, plist) {
-			pr_warn("swap_avail head has type %d\n", sa->si->type);
-		}
-	}
-
-	css_put(css);
-}
-
 /**
  * update_tasks_flags - update the spread flags of tasks in the cpuset.
  * @cs: the cpuset in which each task's spread flags needs to be changed

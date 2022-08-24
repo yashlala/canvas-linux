@@ -31,6 +31,6 @@ SYSCALL_DEFINE1(cgroup_remove_swap, int, swap_info_struct_num)
 
 SYSCALL_DEFINE0(get_cgroup_swap)
 {
-	cpuset_get_preferred_swap(current);
+	pr_warn("Use cgroup2fs accessors instead.\n");
 	return 0;
 }

@@ -79,9 +79,6 @@ extern nodemask_t cpuset_mems_allowed(struct task_struct *p);
 #define cpuset_current_mems_allowed (current->mems_allowed)
 void cpuset_init_current_mems_allowed(void);
 int cpuset_nodemask_valid_mems_allowed(nodemask_t *nodemask);
-// TODO: REMEMBER the other side of the ifdef!
-// (ie: ifndef CONFIG_CPUSETS)
-extern void cpuset_get_preferred_swap(struct task_struct *p);
 
 extern bool __cpuset_node_allowed(int node, gfp_t gfp_mask);
 
@@ -300,11 +297,6 @@ static inline unsigned int read_mems_allowed_begin(void)
 static inline bool read_mems_allowed_retry(unsigned int seq)
 {
 	return false;
-}
-
-static inline void cpuset_get_preferred_swap(struct task_struct *p)
-{
-	// TODO: Probably an iterator or something here?
 }
 
 #endif /* !CONFIG_CPUSETS */
