@@ -2621,8 +2621,8 @@ static int swaps_seq_show(struct seq_file *seq, void *v)
 	struct plist_node *swap_pos = (struct plist_node *) v;
 	struct swap_avail_node *sa = container_of(swap_pos,
 			struct swap_avail_node, plist);
-	// TODO: Print a file name instead
-	seq_printf(seq, "%d\n", sa->si->type);
+	seq_file_path(seq, sa->si->swap_file, " \n\\");
+	seq_putc(seq, '\n');
 	return 0;
 }
 
