@@ -2685,6 +2685,7 @@ static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 		 cpuset_remove_swap(current, si);
 
 out:
+	putname(name);
 	put_swap_device(si);
 	return ret;
 }
