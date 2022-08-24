@@ -2669,7 +2669,7 @@ static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 		 return -EINVAL;
 
 	enable = buf[0] == '+';
-	name = getname(buf + 1);
+	name = getname_kernel(buf + 1);
 	if (IS_ERR(name))
 		return PTR_ERR(name);
 
