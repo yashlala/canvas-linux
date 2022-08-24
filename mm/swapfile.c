@@ -1342,8 +1342,10 @@ struct swap_info_struct *get_swap_device_from_filename(struct filename *name)
 	mapping = swap_file->f_mapping;
 	spin_lock(&swap_lock);
 	plist_for_each_entry(ret, &swap_active_head, list) {
+		pr_warn("looping, type %d\n", ret->type);
 		if (ret->flags & SWP_WRITEOK) {
 			if (ret->swap_file->f_mapping == mapping) {
+				pr_warn("matched entry %d, returning\n", ret->type);
 				found = 1;
 				break;
 			}
