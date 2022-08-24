@@ -1971,7 +1971,7 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
 	return 0;
 }
 
-void cpuset_add_swap(struct task_struct *p, struct swap_info_struct *si, int priority)
+void cpuset_add_swap(struct task_struct *p, struct swap_info_struct *si)
 {
 	struct cpuset *cpuset;
 	struct swap_avail_node *node;
@@ -1979,18 +1979,18 @@ void cpuset_add_swap(struct task_struct *p, struct swap_info_struct *si, int pri
 
 	// Create a the new, plist style preferred swap
 	node = kmalloc(sizeof(*node), GFP_NOWAIT);
-	plist_node_init(&node->plist, priority);
+	plist_node_init(&node->plist, si->prio);
 	node->si = si;
 
 	// Append it to the preferred swap list
-	rcu_read_lock(); // needed for cpuset
+	rcu_read_lock(); // needed for cpuset I think
 	cpuset = task_cs(p);
 	spin_lock_irqsave(&cpuset->swap_avail_head_lock, flags);
 	plist_add(&node->plist, &cpuset->swap_avail_head);
 	spin_unlock_irqrestore(&cpuset->swap_avail_head_lock, flags);
 	rcu_read_unlock();
 
-	percpu_ref_get(&si->users); // TODO: Is there a race condition here?
+	percpu_ref_get(&si->users); // TODO: Is this needed?
 }
 
 void cpuset_remove_swap(struct task_struct *p, struct swap_info_struct *si)
@@ -2014,7 +2014,7 @@ void cpuset_remove_swap(struct task_struct *p, struct swap_info_struct *si)
 
 	rcu_read_unlock();
 
-	percpu_ref_put(&si->users);
+	put_swap_device(&si->users);
 }
 
 void cpuset_get_preferred_swap(struct task_struct *p)

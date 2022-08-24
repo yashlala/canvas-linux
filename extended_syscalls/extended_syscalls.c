@@ -23,7 +23,7 @@ SYSCALL_DEFINE2(cgroup_add_swap, int, swap_info_struct_num, int, priority)
             swap_info_struct_num, priority);
 
     spin_lock(&swap_lock);
-    cpuset_add_swap(current, swap_info[swap_info_struct_num], priority); // <-does it need lock? RCU?
+    cpuset_add_swap(current, swap_info[swap_info_struct_num]); // <-does it need lock? RCU?
     spin_unlock(&swap_lock);
 
     pr_warn("add_cgroup_swap: exit syscall.\n");

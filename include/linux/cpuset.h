@@ -83,8 +83,9 @@ int cpuset_nodemask_valid_mems_allowed(nodemask_t *nodemask);
 // (ie: ifndef CONFIG_CPUSETS)
 extern void cpuset_get_preferred_swap(struct task_struct *p);
 extern void cpuset_add_swap(struct task_struct *p,
-		struct swap_info_struct *si, int priority);
-extern void cpuset_remove_swap(struct task_struct *p, struct swap_info_struct *si);
+		struct swap_info_struct *si);
+extern void cpuset_remove_swap(struct task_struct *p,
+		struct swap_info_struct *si);
 
 extern bool __cpuset_node_allowed(int node, gfp_t gfp_mask);
 
@@ -312,7 +313,7 @@ static inline void cpuset_get_preferred_swap(struct task_struct *p)
 
 
 static inline void cpuset_add_swap(struct task_struct *p,
-		struct swap_info_struct *si, int priority)
+		struct swap_info_struct *si)
 {
 	// TODO: Use global fallback or something
 }
