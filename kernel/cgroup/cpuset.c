@@ -1971,9 +1971,8 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
 	return 0;
 }
 
-void cpuset_add_swap(struct task_struct *p, struct swap_info_struct *si)
+static void cpuset_add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
-	struct cpuset *cpuset;
 	struct swap_avail_node *node;
 	unsigned long flags;
 
@@ -1984,7 +1983,6 @@ void cpuset_add_swap(struct task_struct *p, struct swap_info_struct *si)
 
 	// Append it to the preferred swap list
 	rcu_read_lock(); // needed for cpuset I think
-	cpuset = task_cs(p);
 	spin_lock_irqsave(&cpuset->swap_avail_head_lock, flags);
 	plist_add(&node->plist, &cpuset->swap_avail_head);
 	spin_unlock_irqrestore(&cpuset->swap_avail_head_lock, flags);
@@ -1993,17 +1991,13 @@ void cpuset_add_swap(struct task_struct *p, struct swap_info_struct *si)
 	percpu_ref_get(&si->users); // TODO: Is this needed?
 }
 
-void cpuset_remove_swap(struct task_struct *p, struct swap_info_struct *si)
+static void cpuset_remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
-	struct cpuset *cpuset;
 	struct swap_avail_node *node_pos, *node_tmp;
 	unsigned long flags;
 
-	rcu_read_lock(); // needed for cpuset
 
-	cpuset = task_cs(p);
 	spin_lock_irqsave(&cpuset->swap_avail_head_lock, flags);
-
 	// Search for a matching si, and remove its pointer from the list
 	plist_for_each_entry_safe(node_pos, node_tmp, &cpuset->swap_avail_head, plist) {
 		if (node_pos->si->type == si->type) {
@@ -2011,8 +2005,6 @@ void cpuset_remove_swap(struct task_struct *p, struct swap_info_struct *si)
 		}
 	}
 	spin_unlock_irqrestore(&cpuset->swap_avail_head_lock, flags);
-
-	rcu_read_unlock();
 
 	put_swap_device(si);
 }
@@ -2658,6 +2650,7 @@ static void swaps_seq_stop(struct seq_file *seq, void *v)
 static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 		size_t nbytes, loff_t off)
 {
+	struct cpuset *cs = css_cs(of_css(of));
 	bool enable;
 	struct filename *name;
 	struct swap_info_struct *si;
@@ -2680,9 +2673,9 @@ static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 	}
 
 	if (enable)
-		 cpuset_add_swap(current, si);
+		 cpuset_add_swap(cs, si);
 	else
-		 cpuset_remove_swap(current, si);
+		 cpuset_remove_swap(cs, si);
 
 out:
 	putname(name);

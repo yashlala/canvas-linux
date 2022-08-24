@@ -82,10 +82,6 @@ int cpuset_nodemask_valid_mems_allowed(nodemask_t *nodemask);
 // TODO: REMEMBER the other side of the ifdef!
 // (ie: ifndef CONFIG_CPUSETS)
 extern void cpuset_get_preferred_swap(struct task_struct *p);
-extern void cpuset_add_swap(struct task_struct *p,
-		struct swap_info_struct *si);
-extern void cpuset_remove_swap(struct task_struct *p,
-		struct swap_info_struct *si);
 
 extern bool __cpuset_node_allowed(int node, gfp_t gfp_mask);
 
@@ -309,19 +305,6 @@ static inline bool read_mems_allowed_retry(unsigned int seq)
 static inline void cpuset_get_preferred_swap(struct task_struct *p)
 {
 	// TODO: Probably an iterator or something here?
-}
-
-
-static inline void cpuset_add_swap(struct task_struct *p,
-		struct swap_info_struct *si)
-{
-	// TODO: Use global fallback or something
-}
-
-static inline void cpuset_remove_swap(struct task_struct *p,
-		struct swap_info_struct *si)
-{
-	// TODO: Use global fallback or something
 }
 
 #endif /* !CONFIG_CPUSETS */
