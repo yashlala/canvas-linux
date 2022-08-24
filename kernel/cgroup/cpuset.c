@@ -2669,8 +2669,8 @@ static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 	enable = buf[0] == '+';
 	swap_path = buf + 1;
 
-	if (!(swap_index = kstrtol(swap_path, 10, &swap_index)))
-		 return swap_index;
+	if (kstrtol(swap_path, 10, &swap_index))
+		 return -EINVAL;
 
 	if (enable) {
 		cpuset_add_swap(current, swap_info[swap_index],
