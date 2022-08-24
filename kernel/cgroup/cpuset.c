@@ -2014,7 +2014,7 @@ void cpuset_remove_swap(struct task_struct *p, struct swap_info_struct *si)
 
 	rcu_read_unlock();
 
-	put_swap_device(&si->users);
+	put_swap_device(si);
 }
 
 void cpuset_get_preferred_swap(struct task_struct *p)
