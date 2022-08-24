@@ -500,6 +500,8 @@ struct backing_dev_info;
 extern int init_swap_address_space(unsigned int type, unsigned long nr_pages);
 extern void exit_swap_address_space(unsigned int type);
 extern struct swap_info_struct *get_swap_device(swp_entry_t entry);
+extern struct swap_info_struct *get_swap_device_from_filename(
+		struct filename *entry);
 sector_t swap_page_sector(struct page *page);
 
 static inline void put_swap_device(struct swap_info_struct *si)
@@ -514,6 +516,12 @@ static inline struct swap_info_struct *swp_swap_info(swp_entry_t entry)
 }
 
 static inline struct swap_info_struct *get_swap_device(swp_entry_t entry)
+{
+	return NULL;
+}
+
+static inline struct swap_info_struct *get_swap_device_from_filename(
+		struct filename *entry)
 {
 	return NULL;
 }

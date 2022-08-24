@@ -2648,7 +2648,7 @@ static void swaps_seq_stop(struct seq_file *seq, void *v)
  * and allows for more informative error messages.
  *
  * NOTE: Priorities are global right now. Think whether we want this.
-
+ * NOTE: Strip => can't remove swapfiles ending in a newline.
  * TODO:
  *  - Propagate state to children. Lock children via cgroup_kn_lock_live when
  *    implementing.
@@ -2659,26 +2659,34 @@ static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 		size_t nbytes, loff_t off)
 {
 	bool enable;
-	char *swap_path;
-	long swap_index;
+	struct filename *name;
+	struct swap_info_struct *si;
+	ssize_t ret = nbytes;
 
+	buf = strstrip(buf);
 
 	if (buf[0] == '\0' || !(buf[0] == '+' || buf[0] == '-'))
 		 return -EINVAL;
 
 	enable = buf[0] == '+';
-	swap_path = buf + 1;
+	name = getname(buf + 1);
+	if (IS_ERR(name))
+		return PTR_ERR(name);
 
-	if (kstrtol(swap_path, 10, &swap_index))
-		 return -EINVAL;
-
-	if (enable) {
-		cpuset_add_swap(current, swap_info[swap_index],
-				swap_info[swap_index]->prio);
-	} else {
-		cpuset_remove_swap(current, swap_info[swap_index]);
+	si = get_swap_device_from_filename(name);
+	if (IS_ERR(si)) {
+		 ret = PTR_ERR(si);
+		 goto out;
 	}
-	return nbytes;
+
+	if (enable)
+		 cpuset_add_swap(current, si);
+	else
+		 cpuset_remove_swap(current, si);
+
+out:
+	put_swap_device(si);
+	return ret;
 }
 
 /*

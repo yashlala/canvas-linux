@@ -1325,6 +1325,45 @@ put_out:
 	return NULL;
 }
 
+/*
+ * The returned swap_info_struct must be freed with put_swap_device()
+ */
+struct swap_info_struct *get_swap_device_from_filename(struct filename *name)
+{
+	struct swap_info_struct *ret;
+	struct file *swap_file;
+	struct address_space *mapping;
+	int found = 0;
+
+	swap_file = file_open_name(name, O_RDWR|O_LARGEFILE, 0);
+	if (IS_ERR(swap_file))
+		 return (struct swap_info_struct *) swap_file;
+
+	mapping = swap_file->f_mapping;
+	spin_lock(&swap_lock);
+	plist_for_each_entry(ret, &swap_active_head, list) {
+		if (ret->flags & SWP_WRITEOK) {
+			if (ret->swap_file->f_mapping == mapping) {
+				found = 1;
+				break;
+			}
+		}
+	}
+	if (!found) {
+		ret = ERR_PTR(-EINVAL);
+		goto err;
+	}
+
+	if (!percpu_ref_tryget_live(&ret->users)) {
+		ret = ERR_PTR(-EAGAIN);
+		goto err;
+	}
+
+err:
+	spin_unlock(&swap_lock);
+	return ret;
+}
+
 static unsigned char __swap_entry_free(struct swap_info_struct *p,
 				       swp_entry_t entry)
 {
