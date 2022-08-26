@@ -291,6 +291,60 @@ static inline int is_swap_subtree_locked(const struct cpuset *cs)
 	return test_bit(CS_SWAP_SUBTREE_LOCKED, &cs->flags);
 }
 
+
+static bool in_swap_list(const struct swap_info_struct *si,
+		const struct plist_head *list)
+{
+	struct swap_node *pos;
+	plist_for_each_entry(pos, list, plist) {
+		if (pos->si == si)
+			 return true;
+	}
+	return false;
+}
+
+static inline bool in_effective_swaps(const struct swap_info_struct *si,
+		const struct cpuset *cs)
+{
+	return in_swap_list(si, &cs->effective_swaps_head);
+}
+
+static inline bool in_allowed_swaps(const struct swap_info_struct *si,
+		const struct cpuset *cs)
+{
+	return in_swap_list(si, &cs->swaps_allowed_head);
+}
+
+static int add_to_swap_list(struct swap_info_struct *si,
+		struct plist_head *list)
+{
+	struct swap_node *node;
+
+	if (in_swap_list(si, list))
+		 return 0;
+
+	node = kmalloc(sizeof(*node), GFP_KERNEL); // TODO: GFP_KERNEL OK?
+	if (!node)
+		 return -EAGAIN;
+	plist_node_init(&node->plist, si->prio);
+	node->si = si;
+
+	plist_add(&node->plist, list);
+	return 0;
+}
+
+static void remove_from_swap_list(struct swap_info_struct *si,
+		struct plist_head *list)
+{
+	struct swap_node *node;
+	plist_for_each_entry(node, list, plist) {
+		if (node->si == si) {
+			kfree(node);
+			return;
+		}
+	}
+}
+
 /*
  * Send notification event of whenever partition_root_state changes.
  */
@@ -307,7 +361,7 @@ static struct cpuset top_cpuset = {
 	.partition_root_state = PRS_ENABLED,
 	.swaps_allowed_head = PLIST_HEAD_INIT(top_cpuset.swaps_allowed_head),
 	.effective_swaps_head = PLIST_HEAD_INIT(top_cpuset.effective_swaps_head),
-	// TODO: Initialize lock here too. No macro exists for that right now.
+	// TODO: Initialize locks in init cpuset method
 };
 
 /**
