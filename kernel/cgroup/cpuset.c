@@ -323,6 +323,9 @@ static int add_to_swap_list(struct swap_info_struct *si,
 	if (in_swap_list(si, list))
 		 return 0;
 
+	percpu_ref_get(&si->users);
+	smp_wmb();
+
 	node = kmalloc(sizeof(*node), GFP_KERNEL); // TODO: GFP_KERNEL OK?
 	if (!node)
 		 return -EAGAIN;
@@ -340,9 +343,10 @@ static void remove_from_swap_list(struct swap_info_struct *si,
 	plist_for_each_entry(node, list, plist) {
 		if (node->si == si) {
 			kfree(node);
-			return;
+			break;
 		}
 	}
+	percpu_ref_put(&si->users);
 }
 
 /*
