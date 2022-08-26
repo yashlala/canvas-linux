@@ -79,7 +79,7 @@ DEFINE_STATIC_KEY_FALSE(cpusets_enabled_key);
  */
 DEFINE_STATIC_KEY_FALSE(cpusets_insane_config_key);
 
-struct swap_avail_node {
+struct swap_node {
 	struct swap_info_struct *si;
 	struct plist_node plist;
 };
@@ -1978,29 +1978,37 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
 	return 0;
 }
 
-static void cpuset_add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
+static int cpuset_add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
-	struct swap_avail_node *node;
+	struct swap_node *node;
 	unsigned long flags;
 
-	// Create a the new, plist style preferred swap
+	// Create a the newstyle preferred swap
 	node = kmalloc(sizeof(*node), GFP_NOWAIT);
+	if (!node)
+		 return -ENOMEM;
 	plist_node_init(&node->plist, si->prio);
 	node->si = si;
+
+	// if (cpuset == &top_cpuset)
+	// 	return -EACCES;
 
 	// Append it to the preferred swap list
 	rcu_read_lock(); // needed for cpuset I think
 	spin_lock_irqsave(&cpuset->swap_lock, flags);
+
 	plist_add(&node->plist, &cpuset->swaps_allowed_head);
+
 	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 	rcu_read_unlock();
 
 	percpu_ref_get(&si->users); // TODO: Is this needed?
+	return 0;
 }
 
 static void cpuset_remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
-	struct swap_avail_node *node_pos, *node_tmp;
+	struct swap_node *node_pos, *node_tmp;
 	unsigned long flags;
 
 
@@ -2632,8 +2640,8 @@ static void *swaps_common_seq_next(struct seq_file *sf, void *v, loff_t *ppos)
 static int swaps_common_seq_show(struct seq_file *seq, void *v)
 {
 	struct plist_node *swap_pos = (struct plist_node *) v;
-	struct swap_avail_node *sa = container_of(swap_pos,
-			struct swap_avail_node, plist);
+	struct swap_node *sa = container_of(swap_pos,
+			struct swap_node, plist);
 	seq_file_path(seq, sa->si->swap_file, " \n\\");
 	seq_putc(seq, '\n');
 	return 0;
@@ -3099,7 +3107,7 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 	struct cpuset *parent = parent_cs(cs);
 	struct cpuset *tmp_cs;
 	struct cgroup_subsys_state *pos_css;
-	struct swap_avail_node *swap_avail, *swap_avail_parent;
+	struct swap_node *swap_avail, *swap_avail_parent;
 
 	if (!parent)
 		return 0;
@@ -3197,7 +3205,7 @@ out_unlock:
 static void cpuset_css_offline(struct cgroup_subsys_state *css)
 {
 	struct cpuset *cs = css_cs(css);
-	struct swap_avail_node *swap_avail_pos, *swap_avail_next;
+	struct swap_node *swap_avail_pos, *swap_avail_next;
 
 	cpus_read_lock();
 	percpu_down_write(&cpuset_rwsem);
