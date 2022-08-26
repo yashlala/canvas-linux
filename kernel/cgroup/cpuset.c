@@ -306,6 +306,7 @@ static struct cpuset top_cpuset = {
 		  (1 << CS_MEM_EXCLUSIVE)),
 	.partition_root_state = PRS_ENABLED,
 	.swaps_allowed_head = PLIST_HEAD_INIT(top_cpuset.swaps_allowed_head),
+	.effective_swaps_head = PLIST_HEAD_INIT(top_cpuset.effective_swaps_head),
 	// TODO: Initialize lock here too. No macro exists for that right now.
 };
 
