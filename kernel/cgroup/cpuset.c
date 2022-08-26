@@ -237,6 +237,7 @@ typedef enum {
 	CS_SCHED_LOAD_BALANCE,
 	CS_SPREAD_PAGE,
 	CS_SPREAD_SLAB,
+	CS_SWAP_SUBTREE_LOCKED
 } cpuset_flagbits_t;
 
 /* convenient tests for these bits */
@@ -283,6 +284,11 @@ static inline int is_spread_slab(const struct cpuset *cs)
 static inline int is_partition_root(const struct cpuset *cs)
 {
 	return cs->partition_root_state > 0;
+}
+
+static inline int is_swap_subtree_locked(const struct cpuset *cs)
+{
+	return test_bit(CS_SWAP_SUBTREE_LOCKED, &cs->flags);
 }
 
 /*
@@ -2411,6 +2417,7 @@ typedef enum {
 	FILE_SUBPARTS_CPULIST,
 	FILE_CPU_EXCLUSIVE,
 	FILE_MEM_EXCLUSIVE,
+	FILE_SWAP_SUBTREE_LOCKED,
 	FILE_MEM_HARDWALL,
 	FILE_SCHED_LOAD_BALANCE,
 	FILE_PARTITION_ROOT,
@@ -2459,6 +2466,9 @@ static int cpuset_write_u64(struct cgroup_subsys_state *css, struct cftype *cft,
 		break;
 	case FILE_SPREAD_SLAB:
 		retval = update_flag(CS_SPREAD_SLAB, cs, val);
+		break;
+	case FILE_SWAP_SUBTREE_LOCKED:
+		retval = update_flag(CS_SWAP_SUBTREE_LOCKED, cs, val);
 		break;
 	default:
 		retval = -EINVAL;
@@ -2748,6 +2758,8 @@ static u64 cpuset_read_u64(struct cgroup_subsys_state *css, struct cftype *cft)
 		return is_spread_page(cs);
 	case FILE_SPREAD_SLAB:
 		return is_spread_slab(cs);
+	case FILE_SWAP_SUBTREE_LOCKED:
+		return is_swap_subtree_locked(cs);
 	default:
 		BUG();
 	}
@@ -2998,6 +3010,13 @@ static struct cftype dfl_files[] = {
 		.seq_next = swaps_common_seq_next,
 		.seq_stop = swaps_common_seq_stop,
 		.private = FILE_EFFECTIVE_SWAPLIST,
+	},
+
+	{
+		.name = "swaps.lock_subtree",
+		.read_u64 = cpuset_read_u64,
+		.write_u64 = cpuset_write_u64,
+		.private = FILE_SWAP_SUBTREE_LOCKED,
 	},
 
 	{ }	/* terminate */
