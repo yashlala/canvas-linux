@@ -318,13 +318,11 @@ static inline bool in_allowed_swaps(const struct swap_info_struct *si,
 	return in_swap_list(si, &cs->swaps_allowed_head);
 }
 
-static int add_to_swap_list(struct swap_info_struct *si,
+// Call with lists locked
+static int __add_to_swap_list(struct swap_info_struct *si,
 		struct plist_head *list)
 {
 	struct swap_node *node;
-
-	if (in_swap_list(si, list))
-		 return 0;
 
 	percpu_ref_get(&si->users);
 	smp_wmb();
@@ -337,6 +335,14 @@ static int add_to_swap_list(struct swap_info_struct *si,
 
 	plist_add(&node->plist, list);
 	return 0;
+}
+
+static int add_to_swap_list(struct swap_info_struct *si,
+		struct plist_head *list)
+{
+	if (in_swap_list(si, list))
+		 return 0;
+	return __add_to_swap_list(si, list);
 }
 
 static void remove_from_swap_list(struct swap_info_struct *si,
@@ -2039,37 +2045,77 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
 	return 0;
 }
 
-static int cpuset_add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
+
+/*
+ * add_swap - Add a partition to effective swap lists in the subtree
+ * @cs:  the cpuset to consider
+ * @si:  the swap partition to add/remove
+ *
+ * When configured swap list is changed, the effective swap lists of this
+ * cpuset and all its descendants need to be updated.
+ *
+ * TODO: Locks, refcounts.
+ */
+static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
-	struct swap_node *node;
 	unsigned long flags;
+	struct cpuset *parent = parent_cs(cpuset);
+	struct cpuset *descendant;
+	struct cgroup_subsys_state *pos;
+	int ret = 0;
 
-	// Create a the newstyle preferred swap
-	node = kmalloc(sizeof(*node), GFP_NOWAIT);
-	if (!node)
-		 return -ENOMEM;
-	plist_node_init(&node->plist, si->prio);
-	node->si = si;
-
-	// if (cpuset == &top_cpuset)
-	// 	return -EACCES;
-
-	// Append it to the preferred swap list
-	rcu_read_lock(); // needed for cpuset I think
+	/* update the node's information */
 	spin_lock_irqsave(&cpuset->swap_lock, flags);
 
-	plist_add(&node->plist, &cpuset->swaps_allowed_head);
+	if (in_allowed_swaps(si, cpuset)) {
+		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
+		return 0;
+	}
+
+	if (parent) {
+		 if ((ret = add_to_swap_list(si, &cpuset->swaps_allowed_head)))
+			  goto err;
+	}
+	if (!parent || in_effective_swaps(si, parent)) {
+		 if ((ret = add_to_swap_list(si, &cpuset->effective_swaps_head)))
+			  goto err;
+	}
 
 	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
+
+	rcu_read_lock();
+
+	/* propagate new swap partitions to descendants */
+	cpuset_for_each_descendant_pre(descendant, pos, cpuset) {
+		/* Don't add swap partitions to locked subtrees. */
+		if (is_swap_subtree_locked(descendant)) {
+			pos = css_rightmost_descendant(pos);
+			continue;
+		}
+
+		spin_lock_irqsave(&descendant->swap_lock, flags);
+		ret = __add_to_swap_list(si, &descendant->swaps_allowed_head);
+		spin_unlock_irqrestore(&descendant->swap_lock, flags);
+
+		if (ret) {
+			rcu_read_unlock();
+			return ret;
+		}
+	}
+
 	rcu_read_unlock();
 
-	percpu_ref_get(&si->users); // TODO: Is this needed?
 	return 0;
+err:
+	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
+	return ret;
 }
 
-static void cpuset_remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
+static void remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
 	struct swap_node *node_pos, *node_tmp;
+	struct cpuset *descendant;
+	struct cgroup_subsys_state *css_pos;
 	unsigned long flags;
 
 
@@ -2082,7 +2128,24 @@ static void cpuset_remove_swap(struct cpuset *cpuset, struct swap_info_struct *s
 	}
 	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 
-	put_swap_device(si);
+	rcu_read_lock();
+
+	/* propagate state to descendants */
+	cpuset_for_each_descendant_pre(descendant, css_pos, cpuset) {
+		/*
+		 * Skip the subtree if the partition is already
+		 * disabled.
+		 */
+		if (!in_effective_swaps(si, descendant)) {
+			css_pos = css_rightmost_descendant(css_pos);
+			continue;
+		}
+
+		remove_from_swap_list(si,
+				&descendant->effective_swaps_head);
+	}
+
+	rcu_read_unlock();
 }
 
 /**
@@ -2755,9 +2818,9 @@ static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 	}
 
 	if (enable)
-		 cpuset_add_swap(cs, si);
+		 add_swap(cs, si);
 	else
-		 cpuset_remove_swap(cs, si);
+		 remove_swap(cs, si);
 
 out:
 	putname(name);
