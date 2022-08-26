@@ -2564,38 +2564,61 @@ out_unlock:
 	return retval ?: nbytes;
 }
 
-static void *swaps_seq_start(struct seq_file *sf, loff_t *spos)
+static void *swaps_common_seq_start(struct seq_file *sf, loff_t *spos)
 {
 	struct cpuset *cs = css_cs(seq_css(sf));
-	struct plist_node *last_swap = plist_last(&cs->swaps_allowed_head);
+	cpuset_filetype_t type = seq_cft(sf)->private;
+	struct plist_head *swap_list;
 	struct plist_node *swap_pos;
 	loff_t pos = *spos;
 
-	// TODO: Locks
+	switch (type) {
+	case FILE_SWAPLIST:
+		swap_list = &cs->swaps_allowed_head;
+		break;
+	case FILE_EFFECTIVE_SWAPLIST:
+		swap_list = &cs->effective_swaps_head;
+		break;
+	default:
+		return ERR_PTR(-EINVAL);
+	}
 
 	// Seek to `spos`th swapfile in the list
-	plist_for_each(swap_pos, &cs->swaps_allowed_head) {
+	plist_for_each(swap_pos, swap_list) {
 		if (pos-- == 0)
 			 return swap_pos;
-		if (swap_pos == last_swap)
+		if (swap_pos == plist_last(swap_list))
 			 return NULL;
 	}
 	return NULL;
 }
 
-static void *swaps_seq_next(struct seq_file *sf, void *v, loff_t *ppos)
+static void *swaps_common_seq_next(struct seq_file *sf, void *v, loff_t *ppos)
 {
 	struct cpuset *cs = css_cs(seq_css(sf));
+	cpuset_filetype_t type = seq_cft(sf)->private;
+	struct plist_head *swap_list;
 	struct plist_node *swap_pos = (struct plist_node *) v;
 
 	(*ppos)++; // seq_file interface requires constantly increasing offset.
 
-	if (swap_pos == plist_last(&cs->swaps_allowed_head))
+	switch (type) {
+	case FILE_SWAPLIST:
+		swap_list = &cs->swaps_allowed_head;
+		break;
+	case FILE_EFFECTIVE_SWAPLIST:
+		swap_list = &cs->effective_swaps_head;
+		break;
+	default:
+		return ERR_PTR(-EINVAL);
+	}
+
+	if (swap_pos == plist_last(swap_list))
 		 return NULL;
 	return plist_next(swap_pos);
 }
 
-static int swaps_seq_show(struct seq_file *seq, void *v)
+static int swaps_common_seq_show(struct seq_file *seq, void *v)
 {
 	struct plist_node *swap_pos = (struct plist_node *) v;
 	struct swap_avail_node *sa = container_of(swap_pos,
@@ -2605,7 +2628,7 @@ static int swaps_seq_show(struct seq_file *seq, void *v)
 	return 0;
 }
 
-static void swaps_seq_stop(struct seq_file *seq, void *v)
+static void swaps_common_seq_stop(struct seq_file *seq, void *v)
 {
 	// TODO: Add locks here
 }
@@ -3009,10 +3032,10 @@ static struct cftype dfl_files[] = {
 
 	{
 		.name = "swaps",
-		.seq_show = swaps_seq_show,
-		.seq_start = swaps_seq_start,
-		.seq_next = swaps_seq_next,
-		.seq_stop = swaps_seq_stop,
+		.seq_show = swaps_common_seq_show,
+		.seq_start = swaps_common_seq_start,
+		.seq_next = swaps_common_seq_next,
+		.seq_stop = swaps_common_seq_stop,
 		.write = swaps_write,
 		.max_write_len = PATH_MAX + 1,
 		.private = FILE_SWAPLIST,
@@ -3021,10 +3044,10 @@ static struct cftype dfl_files[] = {
 
 	{
 		.name = "swaps.effective",
-		.seq_show = swaps_effective_seq_show,
-		.seq_start = swaps_effective_seq_start,
-		.seq_next = swaps_effective_seq_next,
-		.seq_stop = swaps_effective_seq_stop,
+		.seq_show = swaps_common_seq_show,
+		.seq_start = swaps_common_seq_start,
+		.seq_next = swaps_common_seq_next,
+		.seq_stop = swaps_common_seq_stop,
 		.private = FILE_EFFECTIVE_SWAPLIST,
 	},
 
