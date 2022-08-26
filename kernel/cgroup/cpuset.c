@@ -2124,6 +2124,7 @@ static void remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 	plist_for_each_entry_safe(node_pos, node_tmp, &cpuset->swaps_allowed_head, plist) {
 		if (node_pos->si->type == si->type) {
 			plist_del(&node_pos->plist, &cpuset->swaps_allowed_head);
+			break;
 		}
 	}
 	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
