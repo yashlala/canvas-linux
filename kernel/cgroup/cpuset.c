@@ -121,6 +121,9 @@ struct cpuset {
 	/* user-configured CPUs and Memory Nodes allow to tasks */
 	cpumask_var_t cpus_allowed;
 	nodemask_t mems_allowed;
+	// TODO: Semantics not quite the same as above two.
+	// Everything's "allowed". Maybe swaps available is the
+	// better name here. Or swaps requested or something.
 	struct plist_head swaps_allowed_head;
 
 	/* effective CPUs and Memory Nodes allow to tasks */
