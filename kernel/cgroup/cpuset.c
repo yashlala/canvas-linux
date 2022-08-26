@@ -2662,6 +2662,57 @@ out:
 	return ret;
 }
 
+
+// TODO: Merge this function with the default swaps one, for binary size.
+static void *swaps_effective_seq_start(struct seq_file *sf, loff_t *spos)
+{
+	struct cpuset *cs = css_cs(seq_css(sf));
+	struct plist_node *last_swap = plist_last(&cs->effective_swaps_head);
+	struct plist_node *swap_pos;
+	loff_t pos = *spos;
+
+	// TODO: Locks
+
+	// Seek to `spos`th swapfile in the list
+	plist_for_each(swap_pos, &cs->effective_swaps_head) {
+		if (pos-- == 0)
+			 return swap_pos;
+		if (swap_pos == last_swap)
+			 return NULL;
+	}
+	return NULL;
+}
+
+// TODO: Merge this function with the default swaps one, for binary size.
+static void *swaps_effective_seq_next(struct seq_file *sf, void *v, loff_t *ppos)
+{
+	struct cpuset *cs = css_cs(seq_css(sf));
+	struct plist_node *swap_pos = (struct plist_node *) v;
+
+	(*ppos)++; // seq_file interface requires constantly increasing offset.
+
+	if (swap_pos == plist_last(&cs->effective_swaps_head))
+		 return NULL;
+	return plist_next(swap_pos);
+}
+
+// TODO: Merge this function with the default swaps one, for binary size.
+static int swaps_effective_seq_show(struct seq_file *seq, void *v)
+{
+	struct plist_node *swap_pos = (struct plist_node *) v;
+	struct swap_avail_node *sa = container_of(swap_pos,
+			struct swap_avail_node, plist);
+	seq_file_path(seq, sa->si->swap_file, " \n\\");
+	seq_putc(seq, '\n');
+	return 0;
+}
+
+// TODO: Merge this function with the default swaps one, for binary size.
+static void swaps_effective_seq_stop(struct seq_file *seq, void *v)
+{
+	// TODO: Add locks here
+}
+
 /*
  * These ascii lists should be read in a single call, by using a user
  * buffer large enough to hold the entire map.  If read in smaller
@@ -2969,14 +3020,11 @@ static struct cftype dfl_files[] = {
 	},
 
 	{
-		// TODO: Implement proper handler here.
-		// Probably will require a separate "real vs effective"
-		// plist in every cpuset structure.
 		.name = "swaps.effective",
-		.seq_show = swaps_seq_show,
-		.seq_start = swaps_seq_start,
-		.seq_next = swaps_seq_next,
-		.seq_stop = swaps_seq_stop,
+		.seq_show = swaps_effective_seq_show,
+		.seq_start = swaps_effective_seq_start,
+		.seq_next = swaps_effective_seq_next,
+		.seq_stop = swaps_effective_seq_stop,
 		.private = FILE_EFFECTIVE_SWAPLIST,
 	},
 
