@@ -1983,9 +1983,9 @@ static void cpuset_add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 
 	// Append it to the preferred swap list
 	rcu_read_lock(); // needed for cpuset I think
-	spin_lock_irqsave(&cpuset->swaps_allowed_lock, flags);
+	spin_lock_irqsave(&cpuset->swap_lock, flags);
 	plist_add(&node->plist, &cpuset->swaps_allowed_head);
-	spin_unlock_irqrestore(&cpuset->swaps_allowed_lock, flags);
+	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 	rcu_read_unlock();
 
 	percpu_ref_get(&si->users); // TODO: Is this needed?
@@ -1997,14 +1997,14 @@ static void cpuset_remove_swap(struct cpuset *cpuset, struct swap_info_struct *s
 	unsigned long flags;
 
 
-	spin_lock_irqsave(&cpuset->swaps_allowed_lock, flags);
+	spin_lock_irqsave(&cpuset->swap_lock, flags);
 	// Search for a matching si, and remove its pointer from the list
 	plist_for_each_entry_safe(node_pos, node_tmp, &cpuset->swaps_allowed_head, plist) {
 		if (node_pos->si->type == si->type) {
 			plist_del(&node_pos->plist, &cpuset->swaps_allowed_head);
 		}
 	}
-	spin_unlock_irqrestore(&cpuset->swaps_allowed_lock, flags);
+	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 
 	put_swap_device(si);
 }
@@ -3012,8 +3012,9 @@ cpuset_css_alloc(struct cgroup_subsys_state *parent_css)
 	fmeter_init(&cs->fmeter);
 	cs->relax_domain_level = -1;
 
-	plist_head_init(&cs-swap_locksd);
-	spin_lock_init(&cs->swaps_allowed_lock);
+	plist_head_init(&cs->swaps_allowed_head);
+	plist_head_init(&cs->effective_swaps_head);
+	spin_lock_init(&cs->swap_lock);
 
 	/* Set CS_MEMORY_MIGRATE for default hierarchy */
 	if (cgroup_subsys_on_dfl(cpuset_cgrp_subsys))
