@@ -2087,6 +2087,9 @@ static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 
 	/* propagate new swap partitions to descendants */
 	cpuset_for_each_descendant_pre(descendant, pos, cpuset) {
+		if (descendant == cpuset)
+			 break;
+
 		/* Don't add swap partitions to locked subtrees. */
 		if (is_swap_subtree_locked(descendant)) {
 			pos = css_rightmost_descendant(pos);
@@ -2133,6 +2136,9 @@ static void remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 
 	/* propagate state to descendants */
 	cpuset_for_each_descendant_pre(descendant, css_pos, cpuset) {
+		if (descendant == cpuset)
+			 continue;
+
 		/*
 		 * Skip the subtree if the partition is already
 		 * disabled.
