@@ -178,6 +178,10 @@ static inline void set_mems_allowed(nodemask_t nodemask)
 	task_unlock(current);
 }
 
+// TODO: Accessors ifndef config_cpusets
+int cpuset_swapon(struct swap_info_struct *si);
+void cpuset_swapoff(struct swap_info_struct *si);
+
 #else /* !CONFIG_CPUSETS */
 
 static inline bool cpusets_enabled(void) { return false; }

@@ -2045,6 +2045,56 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
 	return 0;
 }
 
+/*
+ * add_swap_hier - Add a partition to effective swap lists in the subtree
+ * @cs:  the parent cpuset to consider
+ * @si:  the swap partition to add/remove
+ *
+ * When new swap devices are made available, the available and effective swap
+ * lists of a cpuset's descendants need to be updated. This function doesn't
+ * touch the root cpuset.
+ *
+ * TODO: Locks, refcounts.
+ */
+static int add_swap_hier(struct cpuset *cpuset, struct swap_info_struct *si)
+{
+	struct cpuset *descendant;
+	struct cgroup_subsys_state *pos;
+	unsigned long flags;
+	int ret;
+
+	rcu_read_lock();
+
+	/* propagate new swap partitions to descendants */
+	cpuset_for_each_descendant_pre(descendant, pos, cpuset) {
+		if (descendant == cpuset)
+			 break;
+
+		/* Don't add swap partitions to locked subtrees. */
+		if (is_swap_subtree_locked(descendant)) {
+			pos = css_rightmost_descendant(pos);
+			continue;
+		}
+
+		spin_lock_irqsave(&descendant->swap_lock, flags);
+
+		if ((ret = __add_to_swap_list(si, &descendant->swaps_allowed_head)))
+			 goto err;
+		if ((ret = __add_to_swap_list(si, &descendant->effective_swaps_head)))
+			 goto err;
+
+		spin_unlock_irqrestore(&descendant->swap_lock, flags);
+	}
+
+	rcu_read_unlock();
+
+	return 0;
+err:
+	spin_unlock_irqrestore(&descendant->swap_lock, flags);
+	rcu_read_unlock();
+	return ret;
+}
+
 
 /*
  * add_swap - Add a partition to effective swap lists in the subtree
@@ -2060,8 +2110,6 @@ static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
 	unsigned long flags;
 	struct cpuset *parent = parent_cs(cpuset);
-	struct cpuset *descendant;
-	struct cgroup_subsys_state *pos;
 	int ret = 0;
 
 	/* update the node's information */
@@ -2083,33 +2131,9 @@ static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 
 	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 
-	rcu_read_lock();
+	ret = add_swap_hier(cpuset, si);
 
-	/* propagate new swap partitions to descendants */
-	cpuset_for_each_descendant_pre(descendant, pos, cpuset) {
-		if (descendant == cpuset)
-			 break;
-
-		/* Don't add swap partitions to locked subtrees. */
-		if (is_swap_subtree_locked(descendant)) {
-			pos = css_rightmost_descendant(pos);
-			continue;
-		}
-
-		spin_lock_irqsave(&descendant->swap_lock, flags);
-		ret = __add_to_swap_list(si, &descendant->swaps_allowed_head);
-		ret = __add_to_swap_list(si, &descendant->effective_swaps_head);
-		spin_unlock_irqrestore(&descendant->swap_lock, flags);
-
-		if (ret) {
-			rcu_read_unlock();
-			return ret;
-		}
-	}
-
-	rcu_read_unlock();
-
-	return 0;
+	return ret;
 err:
 	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 	return ret;
@@ -2151,6 +2175,50 @@ static void remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 
 		remove_from_swap_list(si,
 				&descendant->effective_swaps_head);
+	}
+
+	rcu_read_unlock();
+}
+
+/*
+ * cpuset_swapon - expose a new swap_info_struct to the cpuset controller
+ *
+ * Called during swapon() syscall.
+ * TODO: Take locks
+ */
+int cpuset_swapon(struct swap_info_struct *si)
+{
+	int ret = 0;
+
+	if ((ret = add_to_swap_list(si, &top_cpuset.effective_swaps_head)))
+		 return ret;
+
+	ret = add_swap_hier(&top_cpuset, si);
+	return ret;
+}
+
+/*
+ * cpuset_swapoff - remove a swap_info_struct from the cpuset controller
+ *
+ * Called during swapoff() syscall.
+ *
+ * TODO: Locking
+ */
+void cpuset_swapoff(struct swap_info_struct *si)
+{
+	struct cpuset *cpuset;
+	struct cgroup_subsys_state *css_pos;
+	unsigned long flags;
+
+	rcu_read_lock();
+
+	cpuset_for_each_descendant_pre(cpuset, css_pos, &top_cpuset) {
+		spin_lock_irqsave(&cpuset->swap_lock, flags);
+
+		remove_from_swap_list(si, &cpuset->effective_swaps_head);
+		remove_from_swap_list(si, &cpuset->swaps_allowed_head);
+
+		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 	}
 
 	rcu_read_unlock();
