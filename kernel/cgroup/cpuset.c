@@ -3186,6 +3186,7 @@ static struct cftype dfl_files[] = {
 		.read_u64 = cpuset_read_u64,
 		.write_u64 = cpuset_write_u64,
 		.private = FILE_SWAP_SUBTREE_LOCKED,
+		.flags = CFTYPE_NOT_ON_ROOT,
 	},
 
 	{ }	/* terminate */
