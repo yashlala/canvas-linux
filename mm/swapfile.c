@@ -2423,6 +2423,9 @@ static void _enable_swap_info(struct swap_info_struct *p)
 	 */
 	plist_add(&p->list, &swap_active_head);
 	add_to_avail_list(p);
+
+	// TODO: Handle possible OOM in below line!
+	cpuset_swapon(p);
 }
 
 static void enable_swap_info(struct swap_info_struct *p, int prio,
@@ -2518,6 +2521,9 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 		spin_unlock(&swap_lock);
 		goto out_dput;
 	}
+
+	// TODO: A lot more care and attention to this area.
+	cpuset_swapoff(p);
 	del_from_avail_list(p);
 	spin_lock(&p->lock);
 	if (p->prio < 0) {
