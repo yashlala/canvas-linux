@@ -2098,6 +2098,7 @@ static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 
 		spin_lock_irqsave(&descendant->swap_lock, flags);
 		ret = __add_to_swap_list(si, &descendant->swaps_allowed_head);
+		ret = __add_to_swap_list(si, &descendant->effective_swaps_head);
 		spin_unlock_irqrestore(&descendant->swap_lock, flags);
 
 		if (ret) {
