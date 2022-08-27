@@ -2117,20 +2117,20 @@ err:
 
 static void remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
-	struct swap_node *node_pos, *node_tmp;
 	struct cpuset *descendant;
 	struct cgroup_subsys_state *css_pos;
 	unsigned long flags;
 
-
 	spin_lock_irqsave(&cpuset->swap_lock, flags);
-	// Search for a matching si, and remove its pointer from the list
-	plist_for_each_entry_safe(node_pos, node_tmp, &cpuset->swaps_allowed_head, plist) {
-		if (node_pos->si->type == si->type) {
-			plist_del(&node_pos->plist, &cpuset->swaps_allowed_head);
-			break;
-		}
+
+	if (!in_allowed_swaps(si, cpuset)) {
+		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
+		return;
 	}
+
+	remove_from_swap_list(si, &cpuset->swaps_allowed_head);
+	remove_from_swap_list(si, &cpuset->effective_swaps_head);
+
 	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 
 	rcu_read_lock();
