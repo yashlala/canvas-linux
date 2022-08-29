@@ -359,6 +359,28 @@ static void remove_from_swap_list(struct swap_info_struct *si,
 	percpu_ref_put(&si->users);
 }
 
+static int copy_swap_list(struct plist_head *dest, struct plist_head *src)
+{
+	struct swap_node *node;
+	int ret = 0;
+
+	plist_for_each_entry(node, src, plist) {
+		if ((ret = __add_to_swap_list(node->si, dest)))
+			 return ret;
+	}
+	return ret;
+}
+
+static void put_swap_list(struct plist_head *swap_list)
+{
+	struct swap_node *node;
+	plist_for_each_entry(node, swap_list, plist) {
+		plist_del(&node->plist, swap_list);
+		percpu_ref_put(&node->si->users);
+		kfree(node);
+	}
+}
+
 /*
  * Send notification event of whenever partition_root_state changes.
  */
@@ -3309,7 +3331,6 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 	struct cpuset *parent = parent_cs(cs);
 	struct cpuset *tmp_cs;
 	struct cgroup_subsys_state *pos_css;
-	struct swap_node *swap_avail, *swap_avail_parent;
 
 	if (!parent)
 		return 0;
@@ -3333,23 +3354,9 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 		parent->child_ecpus_count++;
 	}
 
-	// No swap lock needed. We worry about 2 conditions:
-	// 1) swapon/swapoff during this operation (si is broken). No worries
-	//           here, swapoff takes the cgroup_mutex.
-	// 2) parent's pointer is concurrently modified. No worries here,
-	//           cgroup modification is protected by cgroup_mutex.
-	// TODO: Move to our own function, we'll need to do it often.
-	plist_for_each_entry(swap_avail_parent, &parent->swaps_allowed_head, plist) {
-		swap_avail = kmalloc(sizeof(*swap_avail), GFP_NOWAIT);
-		if (!swap_avail)
-			 return -ENOMEM;
-		plist_node_init(&swap_avail->plist, swap_avail_parent->plist.prio);
-		plist_add(&swap_avail->plist, &cs->swaps_allowed_head);
-
-		percpu_ref_get(&swap_avail_parent->si->users);
-		smp_mb(); // TODO: Do I really need a memory barrier here?
-		WRITE_ONCE(swap_avail->si, swap_avail_parent->si);
-	}
+	// TODO: Error handling here. ENOMEM must be propagated.
+	copy_swap_list(&cs->effective_swaps_head, &parent->effective_swaps_head);
+	copy_swap_list(&cs->swaps_allowed_head, &parent->swaps_allowed_head);
 
 	spin_unlock_irq(&callback_lock);
 
@@ -3407,7 +3414,6 @@ out_unlock:
 static void cpuset_css_offline(struct cgroup_subsys_state *css)
 {
 	struct cpuset *cs = css_cs(css);
-	struct swap_node *swap_avail_pos, *swap_avail_next;
 
 	cpus_read_lock();
 	percpu_down_write(&cpuset_rwsem);
@@ -3426,11 +3432,8 @@ static void cpuset_css_offline(struct cgroup_subsys_state *css)
 		parent->child_ecpus_count--;
 	}
 
-	plist_for_each_entry_safe(swap_avail_pos, swap_avail_next, &cs->swaps_allowed_head, plist) {
-		percpu_ref_put(&swap_avail_pos->si->users);
-		plist_del(&swap_avail_pos->plist, &cs->swaps_allowed_head);
-		kfree(swap_avail_pos);
-	}
+	put_swap_list(&cs->effective_swaps_head);
+	put_swap_list(&cs->swaps_allowed_head);
 
 	cpuset_dec();
 	clear_bit(CS_ONLINE, &cs->flags);
