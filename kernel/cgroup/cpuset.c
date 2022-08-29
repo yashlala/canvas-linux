@@ -351,6 +351,7 @@ static void remove_from_swap_list(struct swap_info_struct *si,
 	struct swap_node *node;
 	plist_for_each_entry(node, list, plist) {
 		if (node->si == si) {
+			plist_del(&node->plist, list);
 			kfree(node);
 			break;
 		}
