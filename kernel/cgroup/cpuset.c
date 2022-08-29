@@ -328,6 +328,7 @@ static int __add_to_swap_list(struct swap_info_struct *si,
 	smp_wmb();
 
 	node = kmalloc(sizeof(*node), GFP_KERNEL); // TODO: GFP_KERNEL OK?
+						   // Maybe GFP_NOWAIT?
 	if (!node)
 		 return -EAGAIN;
 	plist_node_init(&node->plist, si->prio);
