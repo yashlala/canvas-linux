@@ -2069,7 +2069,7 @@ static int add_swap_hier(struct cpuset *cpuset, struct swap_info_struct *si)
 	/* propagate new swap partitions to descendants */
 	cpuset_for_each_descendant_pre(descendant, pos, cpuset) {
 		if (descendant == cpuset)
-			 break;
+			 continue;
 
 		/* Don't add swap partitions to locked subtrees. */
 		if (is_swap_subtree_locked(descendant)) {
