@@ -2891,7 +2891,7 @@ static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 	si = get_swap_device_from_filename(name);
 	if (IS_ERR(si)) {
 		 ret = PTR_ERR(si);
-		 goto out;
+		 goto out_noswap;
 	}
 
 	if (enable)
@@ -2899,9 +2899,9 @@ static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 	else
 		 remove_swap(cs, si);
 
-out:
-	putname(name);
 	put_swap_device(si);
+out_noswap:
+	putname(name);
 	return ret;
 }
 
