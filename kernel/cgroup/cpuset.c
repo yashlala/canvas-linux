@@ -2047,7 +2047,7 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
 }
 
 /*
- * add_swap_hier - Add a partition to effective swap lists in the subtree
+ * add_swap_hier - Add a partition to swap lists in the subtree
  * @cs:  the parent cpuset to consider
  * @si:  the swap partition to add/remove
  *
@@ -2098,7 +2098,7 @@ err:
 
 
 /*
- * add_swap - Add a partition to effective swap lists in the subtree
+ * add_swap - Add a partition to swap lists in the subtree
  * @cs:  the cpuset to consider
  * @si:  the swap partition to add/remove
  *
