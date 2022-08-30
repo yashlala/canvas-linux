@@ -3182,6 +3182,10 @@ static struct cftype legacy_files[] = {
 		.flags = CFTYPE_NOT_ON_ROOT,
 	},
 
+	// TODO: Apparently default cgroupv1 has 'effective' as a read only
+	// version regular, unless 'cpuset_v2_mode' mount option is set.
+	// We should implement this behavior if we want cgroupv1 support.
+	// Also, we should heed CGRP_CPUSET_CLONE_CHILDREN.
 	{
 		.name = "effective_swaps",
 		.seq_show = swaps_common_seq_show,
@@ -3433,6 +3437,7 @@ static void cpuset_css_offline(struct cgroup_subsys_state *css)
 		parent->child_ecpus_count--;
 	}
 
+	// TODO: Locking for all the cpuset_css functions.
 	put_swap_list(&cs->effective_swaps_head);
 	put_swap_list(&cs->swaps_allowed_head);
 
@@ -3488,7 +3493,6 @@ struct cgroup_subsys cpuset_cgrp_subsys = {
 	.css_alloc	= cpuset_css_alloc,
 	.css_online	= cpuset_css_online,
 	.css_offline	= cpuset_css_offline,
-	// TODO: css reset here?
 	.css_free	= cpuset_css_free,
 	.can_attach	= cpuset_can_attach,
 	.cancel_attach	= cpuset_cancel_attach,
