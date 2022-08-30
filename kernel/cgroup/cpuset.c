@@ -327,10 +327,10 @@ static int __add_to_swap_list(struct swap_info_struct *si,
 	percpu_ref_get(&si->users);
 	smp_wmb();
 
-	node = kmalloc(sizeof(*node), GFP_KERNEL); // TODO: GFP_KERNEL OK?
-						   // Maybe GFP_NOWAIT?
-	if (!node)
-		 return -EAGAIN;
+	// TODO: GFP_KERNEL OK? Maybe GFP_NOWAIT?
+	if (!(node = kmalloc(sizeof(*node), GFP_KERNEL)))
+		 return -ENOMEM;
+
 	plist_node_init(&node->plist, si->prio);
 	node->si = si;
 
@@ -360,18 +360,6 @@ static void remove_from_swap_list(struct swap_info_struct *si,
 	percpu_ref_put(&si->users);
 }
 
-static int copy_swap_list(struct plist_head *dest, struct plist_head *src)
-{
-	struct swap_node *node;
-	int ret = 0;
-
-	plist_for_each_entry(node, src, plist) {
-		if ((ret = __add_to_swap_list(node->si, dest)))
-			 return ret;
-	}
-	return ret;
-}
-
 static void put_swap_list(struct plist_head *swap_list)
 {
 	struct swap_node *node;
@@ -380,6 +368,22 @@ static void put_swap_list(struct plist_head *swap_list)
 		percpu_ref_put(&node->si->users);
 		kfree(node);
 	}
+}
+
+static int copy_swap_list(struct plist_head *dest, struct plist_head *src)
+{
+	struct swap_node *node;
+	int ret;
+
+	plist_for_each_entry(node, src, plist) {
+		if ((ret = __add_to_swap_list(node->si, dest)))
+			 goto err;
+	}
+	return 0;
+
+err:
+	put_swap_list(dest);
+	return ret;
 }
 
 /*
@@ -398,7 +402,6 @@ static struct cpuset top_cpuset = {
 	.partition_root_state = PRS_ENABLED,
 	.swaps_allowed_head = PLIST_HEAD_INIT(top_cpuset.swaps_allowed_head),
 	.effective_swaps_head = PLIST_HEAD_INIT(top_cpuset.effective_swaps_head),
-	// TODO: Initialize locks in init cpuset method
 };
 
 /**
@@ -3336,6 +3339,7 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 	struct cpuset *parent = parent_cs(cs);
 	struct cpuset *tmp_cs;
 	struct cgroup_subsys_state *pos_css;
+	int ret;
 
 	if (!parent)
 		return 0;
@@ -3359,9 +3363,12 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 		parent->child_ecpus_count++;
 	}
 
-	// TODO: Error handling here. ENOMEM must be propagated.
-	copy_swap_list(&cs->effective_swaps_head, &parent->effective_swaps_head);
-	copy_swap_list(&cs->swaps_allowed_head, &parent->swaps_allowed_head);
+	if ((ret = copy_swap_list(&cs->effective_swaps_head,
+			&parent->effective_swaps_head)))
+		 goto err;
+	if ((ret = copy_swap_list(&cs->swaps_allowed_head,
+					&parent->swaps_allowed_head)))
+		 goto err;
 
 	spin_unlock_irq(&callback_lock);
 
@@ -3401,6 +3408,16 @@ out_unlock:
 	percpu_up_write(&cpuset_rwsem);
 	cpus_read_unlock();
 	return 0;
+
+err:
+	spin_unlock_irq(&callback_lock);
+	cpuset_dec();
+
+	clear_bit(CS_ONLINE, &cs->flags);
+
+	percpu_up_write(&cpuset_rwsem);
+	cpus_read_unlock();
+	return ret;
 }
 
 /*
