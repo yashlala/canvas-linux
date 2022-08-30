@@ -3334,6 +3334,7 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 	struct cpuset *parent = parent_cs(cs);
 	struct cpuset *tmp_cs;
 	struct cgroup_subsys_state *pos_css;
+	struct plist_head *allowed_swaps;
 	int ret;
 
 	if (!parent)
@@ -3358,11 +3359,15 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 		parent->child_ecpus_count++;
 	}
 
+	if (parent == &top_cpuset)
+		 allowed_swaps = &parent->effective_swaps_head;
+	else
+		 allowed_swaps = &parent->swaps_allowed_head;
+
+	if ((ret = copy_swap_list(&cs->swaps_allowed_head, allowed_swaps)))
+		 goto err;
 	if ((ret = copy_swap_list(&cs->effective_swaps_head,
 			&parent->effective_swaps_head)))
-		 goto err;
-	if ((ret = copy_swap_list(&cs->swaps_allowed_head,
-					&parent->swaps_allowed_head)))
 		 goto err;
 
 	spin_unlock_irq(&callback_lock);
