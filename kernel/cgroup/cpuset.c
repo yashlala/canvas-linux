@@ -362,13 +362,10 @@ static void remove_from_swap_list(struct swap_info_struct *si,
 
 static void put_swap_list(struct plist_head *swap_list)
 {
-	struct swap_node *node;
-	plist_for_each_entry(node, swap_list, plist) {
-		pr_warn("put_swap_list: node=%px, node->si=%px, node->si->users=%px\n",
-				node, &node->si, &node->si->users);
+	struct swap_node *node, *tmp;
+	plist_for_each_entry_safe(node, tmp, swap_list, plist) {
 		percpu_ref_put(&node->si->users);
 		plist_del(&node->plist, swap_list);
-		smp_mb();
 		kfree(node);
 	}
 }
