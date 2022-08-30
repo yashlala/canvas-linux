@@ -2235,17 +2235,12 @@ void cpuset_swapoff(struct swap_info_struct *si)
 {
 	struct cpuset *cpuset;
 	struct cgroup_subsys_state *css_pos;
-	unsigned long flags;
 
 	rcu_read_lock();
 
 	cpuset_for_each_descendant_pre(cpuset, css_pos, &top_cpuset) {
-		spin_lock_irqsave(&cpuset->swap_lock, flags);
-
 		remove_from_swap_list(si, &cpuset->effective_swaps_head);
 		remove_from_swap_list(si, &cpuset->swaps_allowed_head);
-
-		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 	}
 
 	rcu_read_unlock();
