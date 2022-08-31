@@ -54,7 +54,7 @@ static void free_swap_count_continuations(struct swap_info_struct *);
 
 static DEFINE_SPINLOCK(swap_lock);
 static unsigned int nr_swapfiles;
-atomic_long_t nr_swap_pages;
+atomic_long_t nr_swap_pages; // TODO: Isolation breaks this entirely
 /*
  * Some modules use swappable objects and may try to swap them out under
  * memory pressure (via the shrinker). Before doing so, they may wish to
@@ -1041,10 +1041,12 @@ static void swap_free_cluster(struct swap_info_struct *si, unsigned long idx)
 	swap_range_free(si, offset, SWAPFILE_CLUSTER);
 }
 
-int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
+
+int __get_swap_pages(struct plist_head *swap_list, spinlock_t *swap_list_lock,
+		int n_goal, swp_entry_t swp_entries[], int entry_size)
 {
 	unsigned long size = swap_entry_size(entry_size);
-	struct swap_info_struct *si, *next;
+	struct swap_node *sn, *sn_next;
 	long avail_pgs;
 	int n_ret = 0;
 	int node;
@@ -1052,11 +1054,12 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 	/* Only single cluster request supported */
 	WARN_ON_ONCE(n_goal > 1 && size == SWAPFILE_CLUSTER);
 
-	spin_lock(&swap_avail_lock);
+	spin_lock(swap_list_lock);
 
+	// TODO: This entire mechanism should be made per-cgroup
 	avail_pgs = atomic_long_read(&nr_swap_pages) / size;
 	if (avail_pgs <= 0) {
-		spin_unlock(&swap_avail_lock);
+		spin_unlock(swap_list_lock);
 		goto noswap;
 	}
 
@@ -1066,40 +1069,40 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 
 start_over:
 	node = numa_node_id();
-	plist_for_each_entry_safe(si, next, &swap_avail_heads[node], avail_lists[node]) {
-		/* requeue si to after same-priority siblings */
-		plist_requeue(&si->avail_lists[node], &swap_avail_heads[node]);
-		spin_unlock(&swap_avail_lock);
-		spin_lock(&si->lock);
-		if (!si->highest_bit || !(si->flags & SWP_WRITEOK)) {
-			spin_lock(&swap_avail_lock);
-			if (plist_node_empty(&si->avail_lists[node])) {
-				spin_unlock(&si->lock);
+	plist_for_each_entry_safe(sn, sn_next, swap_list, plist) {
+		/* requeue sn to after same-priority siblings */
+		plist_requeue(&sn->plist, swap_list);
+		spin_unlock(swap_list_lock);
+		spin_lock(&sn->si->lock);
+		if (!sn->si->highest_bit || !(sn->si->flags & SWP_WRITEOK)) {
+			spin_lock(swap_list_lock);
+			if (plist_node_empty(&sn->plist)) {
+				spin_unlock(&sn->si->lock);
 				goto nextsi;
 			}
-			WARN(!si->highest_bit,
+			WARN(!sn->si->highest_bit,
 			     "swap_info %d in list but !highest_bit\n",
-			     si->type);
-			WARN(!(si->flags & SWP_WRITEOK),
+			     sn->si->type);
+			WARN(!(sn->si->flags & SWP_WRITEOK),
 			     "swap_info %d in list but !SWP_WRITEOK\n",
-			     si->type);
-			__del_from_avail_list(si);
-			spin_unlock(&si->lock);
+			     sn->si->type);
+			__del_from_avail_list(sn->si); // Make per-si later
+			spin_unlock(&sn->si->lock);
 			goto nextsi;
 		}
 		if (size == SWAPFILE_CLUSTER) {
-			if (si->flags & SWP_BLKDEV)
-				n_ret = swap_alloc_cluster(si, swp_entries);
+			if (sn->si->flags & SWP_BLKDEV)
+				n_ret = swap_alloc_cluster(sn->si, swp_entries);
 		} else
-			n_ret = scan_swap_map_slots(si, SWAP_HAS_CACHE,
+			n_ret = scan_swap_map_slots(sn->si, SWAP_HAS_CACHE,
 						    n_goal, swp_entries);
-		spin_unlock(&si->lock);
+		spin_unlock(&sn->si->lock);
 		if (n_ret || size == SWAPFILE_CLUSTER)
 			goto check_out;
 		pr_debug("scan_swap_map of si %d failed to find offset\n",
-			si->type);
+			sn->si->type);
 
-		spin_lock(&swap_avail_lock);
+		spin_lock(swap_list_lock);
 nextsi:
 		/*
 		 * if we got here, it's likely that si was almost full before,
@@ -1112,7 +1115,7 @@ nextsi:
 		 * still in the swap_avail_head list then try it, otherwise
 		 * start over if we have not gotten any slots.
 		 */
-		if (plist_node_empty(&next->avail_lists[node]))
+		if (plist_node_empty(&sn_next->plist))
 			goto start_over;
 	}
 
@@ -1124,6 +1127,19 @@ check_out:
 				&nr_swap_pages);
 noswap:
 	return n_ret;
+}
+
+int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
+{
+		struct plist_head *swap_list;
+		spinlock_t *swap_lock;
+		int ret;
+
+		cpuset_get_current_swaplist(&swap_list, &swap_lock);
+		ret = __get_swap_pages(swap_list, swap_lock,
+						n_goal, swp_entries, entry_size);
+		cpuset_put_current_swaplist();
+		return ret;
 }
 
 static struct swap_info_struct *_swap_info_get(swp_entry_t entry)

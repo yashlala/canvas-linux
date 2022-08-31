@@ -79,10 +79,6 @@ DEFINE_STATIC_KEY_FALSE(cpusets_enabled_key);
  */
 DEFINE_STATIC_KEY_FALSE(cpusets_insane_config_key);
 
-struct swap_node {
-	struct swap_info_struct *si;
-	struct plist_node plist;
-};
 
 /* See "Frequency meter" comments, below. */
 
@@ -2209,6 +2205,40 @@ static void remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 	}
 
 	rcu_read_unlock();
+}
+
+/*
+ * current_cpuset_swaplist - return available swap_info_structs
+ *
+ * Returns a
+ *
+ * The spinlock provided is only for swap list _access_.
+ * Do not modify the returned
+ */
+void cpuset_get_current_swaplist(struct plist_head **swap_list,
+				spinlock_t **swap_lock)
+{
+		struct cpuset *cs;
+		rcu_read_lock();
+
+		cs = task_cs(current);
+		css_get(&cs->css);
+
+		*swap_list = &cs->effective_swaps_head;
+		*swap_lock = &cs->swap_lock;
+
+		rcu_read_unlock();
+}
+
+void cpuset_put_current_swaplist()
+{
+		struct cpuset *cs;
+		rcu_read_lock();
+
+		cs = task_cs(current);
+		css_put(&cs->css);
+
+		rcu_read_unlock();
 }
 
 /*
