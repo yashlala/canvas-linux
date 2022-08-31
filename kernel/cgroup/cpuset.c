@@ -604,6 +604,9 @@ static void cpuset_update_task_spread_flag(struct cpuset *cs,
  * One cpuset is a subset of another if all its allowed CPUs and
  * Memory Nodes are a subset of the other, and its exclusive flags
  * are only set if the other's are set.  Call holding cpuset_rwsem.
+ *
+ * TODO: Do we care about this if the codepath is never used?
+ * For maintainability, we may want to merge this code with the rest.
  */
 
 static int is_cpuset_subset(const struct cpuset *p, const struct cpuset *q)
@@ -692,6 +695,7 @@ static struct cpuset *alloc_trial_cpuset(struct cpuset *cs)
 
 	cpumask_copy(trial->cpus_allowed, cs->cpus_allowed);
 	cpumask_copy(trial->effective_cpus, cs->effective_cpus);
+	// We Could certainly dup list here...do we want to refactor?
 	return trial;
 }
 
