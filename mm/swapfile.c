@@ -52,8 +52,7 @@ static bool swap_count_continued(struct swap_info_struct *, pgoff_t,
 				 unsigned char);
 static void free_swap_count_continuations(struct swap_info_struct *);
 
-// [Yash]: Make this static later. Used to be static, we exposed it for debug.
-DEFINE_SPINLOCK(swap_lock);
+static DEFINE_SPINLOCK(swap_lock);
 static unsigned int nr_swapfiles;
 atomic_long_t nr_swap_pages;
 /*
@@ -1041,8 +1040,6 @@ static void swap_free_cluster(struct swap_info_struct *si, unsigned long idx)
 	unlock_cluster(ci);
 	swap_range_free(si, offset, SWAPFILE_CLUSTER);
 }
-
-atomic_t use_isolated_swap = ATOMIC_INIT(0);
 
 int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 {
