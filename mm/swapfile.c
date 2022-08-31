@@ -1052,9 +1052,7 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 	/* Only single cluster request supported */
 	WARN_ON_ONCE(n_goal > 1 && size == SWAPFILE_CLUSTER);
 
-	// HEY! HEY! WE KEEP THIS LOCKED DURING OUR SCAN SWAP MAP SLOTS!
-	// COULD THIS CAUSE A DEADLOCK? Really, need to figure out all locking...
-	spin_lock(&swap_avail_lock); // Q4Yifan: Removed in Canvas? Why?
+	spin_lock(&swap_avail_lock);
 
 	avail_pgs = atomic_long_read(&nr_swap_pages) / size;
 	if (avail_pgs <= 0) {
@@ -1066,52 +1064,12 @@ int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 
 	atomic_long_sub(n_goal * size, &nr_swap_pages);
 
-	if (atomic_read(&use_isolated_swap)) {
-		// TODO: Re-implement proper swap with plists
-		goto start_over;
-
-		spin_unlock(&swap_avail_lock);
-		spin_lock(&si->lock);
-
-		if (!si->highest_bit || !(si->flags & SWP_WRITEOK)) {
-			spin_unlock(&si->lock);
-			// TODO: Why is this being hit so much? Something's
-			// wrong?
-			WARN(!si->highest_bit,
-			     "priority swap_info %d in list but !highest_bit\n",
-			     si->type);
-			WARN(!(si->flags & SWP_WRITEOK),
-			     "priority swap_info %d in list but !SWP_WRITEOK\n",
-			     si->type);
-
-			spin_lock(&swap_avail_lock);
-			goto start_over;
-		}
-		if (size == SWAPFILE_CLUSTER) {
-			if (si->flags & SWP_BLKDEV)
-				n_ret = swap_alloc_cluster(si, swp_entries);
-		} else
-			n_ret = scan_swap_map_slots(si, SWAP_HAS_CACHE,
-						    n_goal, swp_entries);
-
-		spin_unlock(&si->lock);
-		if (n_ret || size == SWAPFILE_CLUSTER)
-			goto check_out;
-
-		pr_debug("priority scan_swap_map of si %d failed to find offset, "
-				"continuing to global defaults\n",
-			si->type);
-
-		spin_lock(&swap_avail_lock);
-	}
-
 start_over:
 	node = numa_node_id();
 	plist_for_each_entry_safe(si, next, &swap_avail_heads[node], avail_lists[node]) {
 		/* requeue si to after same-priority siblings */
 		plist_requeue(&si->avail_lists[node], &swap_avail_heads[node]);
 		spin_unlock(&swap_avail_lock);
-
 		spin_lock(&si->lock);
 		if (!si->highest_bit || !(si->flags & SWP_WRITEOK)) {
 			spin_lock(&swap_avail_lock);
