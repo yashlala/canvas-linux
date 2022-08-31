@@ -2919,11 +2919,14 @@ static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 		 goto out_noswap;
 	}
 
+	css_get(&cs->css);
+
 	if (enable)
 		 add_swap(cs, si);
 	else
 		 remove_swap(cs, si);
 
+	css_put(&cs->css);
 	put_swap_device(si);
 out_noswap:
 	putname(name);
