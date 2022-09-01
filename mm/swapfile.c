@@ -76,21 +76,6 @@ static const char Unused_offset[] = "Unused swap offset entry ";
  */
 static PLIST_HEAD(swap_active_head);
 
-/*
- * all available (active, not full) swap_info_structs
- * protected with swap_avail_lock, ordered by priority.
- * This is used by folio_alloc_swap() instead of swap_active_head
- * because swap_active_head includes all swap_info_structs,
- * but folio_alloc_swap() doesn't need to look at full ones.
- * This uses its own lock instead of swap_lock because when a
- * swap_info_struct changes between not-full/full, it needs to
- * add/remove itself to/from this list, but the swap_info_struct->lock
- * is held and the locking order requires swap_lock to be taken
- * before any swap_info_struct->lock.
- */
-static struct plist_head *swap_avail_heads;
-static DEFINE_SPINLOCK(swap_avail_lock);
-
 struct swap_info_struct *swap_info[MAX_SWAPFILES];
 
 static DEFINE_MUTEX(swapon_mutex);
@@ -672,21 +657,6 @@ new_cluster:
 	return true;
 }
 
-static void __del_from_avail_list(struct swap_info_struct *p)
-{
-	int nid;
-
-	for_each_node(nid)
-		plist_del(&p->avail_lists[nid], &swap_avail_heads[nid]);
-}
-
-static void del_from_avail_list(struct swap_info_struct *p)
-{
-	spin_lock(&swap_avail_lock);
-	__del_from_avail_list(p);
-	spin_unlock(&swap_avail_lock);
-}
-
 static void swap_range_alloc(struct swap_info_struct *si, unsigned long offset,
 			     unsigned int nr_entries)
 {
@@ -700,20 +670,8 @@ static void swap_range_alloc(struct swap_info_struct *si, unsigned long offset,
 	if (si->inuse_pages == si->pages) {
 		si->lowest_bit = si->max;
 		si->highest_bit = 0;
-		del_from_avail_list(si);
+		// This is a good spot to update our atomic flags.
 	}
-}
-
-static void add_to_avail_list(struct swap_info_struct *p)
-{
-	int nid;
-
-	spin_lock(&swap_avail_lock);
-	for_each_node(nid) {
-		WARN_ON(!plist_node_empty(&p->avail_lists[nid]));
-		plist_add(&p->avail_lists[nid], &swap_avail_heads[nid]);
-	}
-	spin_unlock(&swap_avail_lock);
 }
 
 static void swap_range_free(struct swap_info_struct *si, unsigned long offset,
@@ -726,11 +684,13 @@ static void swap_range_free(struct swap_info_struct *si, unsigned long offset,
 	if (offset < si->lowest_bit)
 		si->lowest_bit = offset;
 	if (end > si->highest_bit) {
-		bool was_full = !si->highest_bit;
+		// bool was_full = !si->highest_bit;
 
 		WRITE_ONCE(si->highest_bit, end);
-		if (was_full && (si->flags & SWP_WRITEOK))
-			add_to_avail_list(si);
+		// NOTE: This may be a good point to update our "avail" atomic flag.
+		//
+		// if (was_full && (si->flags & SWP_WRITEOK))
+		// 	add_to_avail_list(si);
 	}
 	atomic_long_add(nr_entries, &nr_swap_pages);
 	si->inuse_pages -= nr_entries;
@@ -1086,7 +1046,8 @@ start_over:
 			WARN(!(sn->si->flags & SWP_WRITEOK),
 			     "swap_info %d in list but !SWP_WRITEOK\n",
 			     sn->si->type);
-			__del_from_avail_list(sn->si); // Make per-si later
+			// This would be a good spot to put our avail tracking.
+			// __del_from_avail_list(sn->si); // Make per-si later
 			spin_unlock(&sn->si->lock);
 			goto nextsi;
 		}
@@ -2393,7 +2354,6 @@ static void _enable_swap_info(struct swap_info_struct *p)
 	 * swap_info_struct.
 	 */
 	plist_add(&p->list, &swap_active_head);
-	add_to_avail_list(p);
 
 	// TODO: Handle possible OOM in below line!
 	cpuset_swapon(p);
@@ -2495,7 +2455,6 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 
 	// TODO: A lot more care and attention to this area.
 	cpuset_swapoff(p);
-	del_from_avail_list(p);
 	spin_lock(&p->lock);
 	if (p->prio < 0) {
 		struct swap_info_struct *si = p;
@@ -3725,21 +3684,3 @@ void __cgroup_throttle_swaprate(struct page *page, gfp_t gfp_mask)
 	spin_unlock(&swap_avail_lock);
 }
 #endif
-
-static int __init swapfile_init(void)
-{
-	int nid;
-
-	swap_avail_heads = kmalloc_array(nr_node_ids, sizeof(struct plist_head),
-					 GFP_KERNEL);
-	if (!swap_avail_heads) {
-		pr_emerg("Not enough memory for swap heads, swap is disabled\n");
-		return -ENOMEM;
-	}
-
-	for_each_node(nid)
-		plist_head_init(&swap_avail_heads[nid]);
-
-	return 0;
-}
-subsys_initcall(swapfile_init);
