@@ -23,7 +23,7 @@ All work is based on Canvas (NSDI '23).
 
 ## Development Plan
 
-- [X] Phase 1: Prototype
+- Phase 1: Prototype
   1. [X] Define per-cgroup preferred swap partition. Don't worry about
          consistency or proper cgroup interfaces.
   2. [X] Implement primitive syscall-based getters and setters for per-cgroup
@@ -31,7 +31,7 @@ All work is based on Canvas (NSDI '23).
   3. [X] Verify correctness
   4. [X] Test performance.
 
-- [X] Phase 2: Interface
+- Phase 2: Interface
   1. [X] Set up per-cgroup priority lists to dispense with giant locks.
   2. [X] Set up proper interface for per-cgroup preferred swap partition.
   3. [X] Set up `swaps` vs `swaps.effective` distinction
@@ -42,7 +42,7 @@ All work is based on Canvas (NSDI '23).
   8. [X] Swapon, swapoff (actions too tightly bound to functionality, implement
          in stage 3).
 
-- [.] Phase 3: Functionality
+- Phase 3: Functionality
   1. [X] Reimplement actual plist functionality
   2. [ ] Implement swapon and swapoff
   3. [ ] Fix locks (remember `CONFIG_DEBUG_ATOMIC_SLEEP`!).
@@ -59,7 +59,7 @@ All work is based on Canvas (NSDI '23).
   8. [ ] Refactor swap accessor paths to use same `alloc_trial` path as other
          mask style functions.
 
-- [ ] Phase 4: Polish
+- Phase 4: Polish
   1. [ ] Implement `swap_exclusive` iface file
   2. [ ] Clean up globals as much as we can
   3. [ ] Clean up code, add inline documentation
@@ -68,7 +68,7 @@ All work is based on Canvas (NSDI '23).
   6. [ ] Address all todos
   7. [ ] Send patchset to kernel mailing list
 
-- [ ] Phase ?: Wishlist?
+- Phase ?: Wishlist?
   1. [ ] Migrate already-swapped pages to per-cgroup swap partitions.
   2. [ ] Per-cgroup swap cache segregation.
 
