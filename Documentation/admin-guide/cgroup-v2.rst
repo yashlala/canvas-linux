@@ -2151,6 +2151,44 @@ Cpuset Interface Files
 
 	Its value will be affected by memory nodes hotplug events.
 
+  cpuset.swaps
+	A read-write new-line separated values file which exists on
+	non-root cpuset enabled cgroups.
+
+	When read, it lists a new-line separated list of the requested
+	swap devices to be used by tasks within this cgroup. The actual
+	list of swap devices to be granted, however, is subjected to
+	constraints imposed by its parent and can differ from the
+	requested swap devices.
+
+	Swap devices can be enabled or disabled by writing their file
+	path, prefixed with '+' or '-'. A swap device prefixed with '+'
+	enables the swap device, and '-' disables it. Only one swap
+	device path can be specified per write. For example, the swap
+	partition at /dev/sda2 can be enabled by::
+
+	  echo +/dev/sda2 >cpuset.swaps
+
+	Writing "+all" will enable all available swap devices, while
+	"-all" will disable them.
+
+	The value of "cpuset.swaps" can change when the system adds or
+	removes swap devices. New swap devices are automatically added
+	to "cpuset.swaps", unless this behavior has been disabled with
+	"cpuset.swaps.lock_subtree".
+
+	This file controls the swap devices permitted for _new_ page
+	allocation. Existing swap pages are not migrated between swap
+	devices.
+
+  cpuset.swaps.effective
+	A read-only new-line separated values file which exists on all
+	cpuset-enabled cgroups.
+
+	It lists the active swap devices that are actually granted to
+	this cgroup by its parent. These swap devices are allowed to be
+	used by tasks within the current cgroup.
+
   cpuset.cpus.partition
 	A read-write single value file which exists on non-root
 	cpuset-enabled cgroups.  This flag is owned by the parent cgroup
@@ -2227,6 +2265,20 @@ Cpuset Interface Files
 	will be associated to the CPUs of the newly formed partition.
 	Changing the partition state of an invalid partition root to
 	"member" is always allowed even if child cpusets are present.
+
+  cpuset.swaps.lock_subtree
+	A read-write single value file which exists on non-root
+	cpuset-enabled cgroups. Allowed values are "0" and "1". The
+	default is "0".
+
+	When a new swap device is added to the system, it is
+	automatically added to the "cpuset.swaps" file for all cgroups.
+	This default behavior can be disabled by writing "1" to this
+	file.
+
+	Writing "1" to this file prevents new swap devices from automatically being
+	enabled for this cgroup and its children. Writing "0" to the file restores the
+	default behavior.
 
 
 Device controller
