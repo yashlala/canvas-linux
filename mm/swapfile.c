@@ -3654,7 +3654,9 @@ static void free_swap_count_continuations(struct swap_info_struct *si)
 #if defined(CONFIG_MEMCG) && defined(CONFIG_BLK_CGROUP)
 void __cgroup_throttle_swaprate(struct page *page, gfp_t gfp_mask)
 {
-	struct swap_info_struct *si, *next;
+	struct swap_node *sn, *next;
+	struct plist_head *swap_list;
+	spinlock_t *swap_lock;
 	int nid = page_to_nid(page);
 
 	if (!(gfp_mask & __GFP_IO))
@@ -3670,14 +3672,15 @@ void __cgroup_throttle_swaprate(struct page *page, gfp_t gfp_mask)
 	if (current->throttle_queue)
 		return;
 
-	spin_lock(&swap_avail_lock);
-	plist_for_each_entry_safe(si, next, &swap_avail_heads[nid],
-				  avail_lists[nid]) {
+	cpuset_get_current_swaplist(&swap_list, &swap_lock);
+	spin_lock(swap_lock);
+	plist_for_each_entry_safe(sn, next, swap_list, plist) {
 		if (si->bdev) {
 			blkcg_schedule_throttle(bdev_get_queue(si->bdev), true);
 			break;
 		}
 	}
-	spin_unlock(&swap_avail_lock);
+	spin_unlock(swap_lock);
+	cpuset_put_current_swaplist();
 }
 #endif
