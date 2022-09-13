@@ -1080,7 +1080,7 @@ nextsi:
 			goto start_over;
 	}
 
-	spin_unlock(&swap_avail_lock);
+	spin_unlock(swap_list_lock);
 
 check_out:
 	if (n_ret < n_goal)
@@ -2348,7 +2348,7 @@ static void _enable_swap_info(struct swap_info_struct *p)
 	 * swap_active_head needs to be priority ordered for swapoff(),
 	 * which on removal of any swap_info_struct with an auto-assigned
 	 * (i.e. negative) priority increments the auto-assigned priority
-	 * of any lower-priority swap_info_structs.
+	 * of any lower-priority swap_info_structs. NOTE: COMMENT OUT OF DATE.
 	 * swap_avail_head needs to be priority ordered for folio_alloc_swap(),
 	 * which allocates swap pages from the highest available priority
 	 * swap_info_struct.
@@ -3025,9 +3025,6 @@ SYSCALL_DEFINE2(swapon, const char __user *, specialfile, int, swap_flags)
 
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
-
-	if (!swap_avail_heads)
-		return -ENOMEM;
 
 	p = alloc_swap_info();
 	if (IS_ERR(p))
