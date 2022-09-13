@@ -323,11 +323,12 @@ static int __add_to_swap_list(struct swap_info_struct *si,
 	percpu_ref_get(&si->users);
 	smp_wmb();
 
-	// TODO: GFP_KERNEL OK? Maybe GFP_NOWAIT?
-	// Hold on. We add to swap list when memory is low. But low memory means
-	// that GFP_NOWAIT will fail more often. Eek.
-	// Why is this called in a non sleeping context anyways? Spinlock or
-	// something? Debug later.
+	// TODO: We need more swap when memory is low. But low memory means
+	// that GFP_NOWAIT will fail.
+	// We need GFP_NOWAIT because this function is called under spinlock
+	// (we don't know how many cgroups need node addition until we've
+	// locked the cgroup tree). Think this through later, we need a better
+	// way.
 	if (!(node = kmalloc(sizeof(*node), GFP_NOWAIT)))
 		 return -ENOMEM;
 

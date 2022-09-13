@@ -2336,34 +2336,36 @@ static void setup_swap_info(struct swap_info_struct *p, int prio,
 	p->cluster_info = cluster_info;
 }
 
-static void _enable_swap_info(struct swap_info_struct *p)
+static int _enable_swap_info(struct swap_info_struct *p)
 {
+	int err = 0;
+
 	p->flags |= SWP_WRITEOK;
 	atomic_long_add(p->pages, &nr_swap_pages);
 	total_swap_pages += p->pages;
 
 	assert_spin_locked(&swap_lock);
 	/*
-	 * both lists are plists, and thus priority ordered.
 	 * swap_active_head needs to be priority ordered for swapoff(),
 	 * which on removal of any swap_info_struct with an auto-assigned
 	 * (i.e. negative) priority increments the auto-assigned priority
-	 * of any lower-priority swap_info_structs. NOTE: COMMENT OUT OF DATE.
-	 * swap_avail_head needs to be priority ordered for folio_alloc_swap(),
-	 * which allocates swap pages from the highest available priority
-	 * swap_info_struct.
+	 * of any lower-priority swap_info_structs.
 	 */
 	plist_add(&p->list, &swap_active_head);
 
-	// TODO: Handle possible OOM in below line!
-	cpuset_swapon(p);
+	err = cpuset_swapon(p);
+	if (err)
+		 plist_del(&p->list, &swap_active_head);
+	return err;
 }
 
-static void enable_swap_info(struct swap_info_struct *p, int prio,
+static int enable_swap_info(struct swap_info_struct *p, int prio,
 				unsigned char *swap_map,
 				struct swap_cluster_info *cluster_info,
 				unsigned long *frontswap_map)
 {
+	int error = 0;
+
 	if (IS_ENABLED(CONFIG_FRONTSWAP))
 		frontswap_init(p->type, frontswap_map);
 	spin_lock(&swap_lock);
@@ -2377,9 +2379,11 @@ static void enable_swap_info(struct swap_info_struct *p, int prio,
 	percpu_ref_resurrect(&p->users);
 	spin_lock(&swap_lock);
 	spin_lock(&p->lock);
-	_enable_swap_info(p);
+	if ((error = _enable_swap_info(p)))
+		 percpu_ref_kill(&p->users);
 	spin_unlock(&p->lock);
 	spin_unlock(&swap_lock);
+	return error;
 }
 
 static void reinsert_swap_info(struct swap_info_struct *p)
@@ -3209,7 +3213,11 @@ SYSCALL_DEFINE2(swapon, const char __user *, specialfile, int, swap_flags)
 	if (swap_flags & SWAP_FLAG_PREFER)
 		prio =
 		  (swap_flags & SWAP_FLAG_PRIO_MASK) >> SWAP_FLAG_PRIO_SHIFT;
-	enable_swap_info(p, prio, swap_map, cluster_info, frontswap_map);
+	error = enable_swap_info(p, prio, swap_map, cluster_info, frontswap_map);
+	if (error) {
+		mutex_unlock(&swapon_mutex);
+		goto free_swap_address_space;
+	}
 
 	pr_info("Adding %uk swap on %s.  Priority:%d extents:%d across:%lluk %s%s%s%s%s\n",
 		p->pages<<(PAGE_SHIFT-10), name->name, p->prio,
