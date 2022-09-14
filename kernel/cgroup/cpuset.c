@@ -291,6 +291,7 @@ static inline int is_swap_subtree_locked(const struct cpuset *cs)
 }
 
 
+// Call with si->swap_lock held.
 static bool in_swap_list(const struct swap_info_struct *si,
 		const struct plist_head *list)
 {
@@ -302,12 +303,14 @@ static bool in_swap_list(const struct swap_info_struct *si,
 	return false;
 }
 
+// Call with si->swap_lock held
 static inline bool in_effective_swaps(const struct swap_info_struct *si,
 		const struct cpuset *cs)
 {
 	return in_swap_list(si, &cs->effective_swaps_head);
 }
 
+// Call with si->swap_lock held
 static inline bool in_allowed_swaps(const struct swap_info_struct *si,
 		const struct cpuset *cs)
 {
@@ -2131,12 +2134,12 @@ err:
 /*
  * add_swap - Add a partition to swap lists in the subtree
  * @cs:  the cpuset to consider
- * @si:  the swap partition to add/remove
+ * @si:  the swap partition to add
  *
  * When configured swap list is changed, the effective swap lists of this
  * cpuset and all its descendants need to be updated.
  *
- * TODO: Locks, refcounts.
+ * Call with cpuset_rwsem and callback_lock held.
  */
 static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
@@ -2171,6 +2174,16 @@ err:
 	return ret;
 }
 
+/*
+ * remove_swap - Remove a partition from swap lists in the subtree
+ * @cs:  the cpuset to consider
+ * @si:  the swap partition to remove
+ *
+ * When the swaps_allowed_head of a cpuset is changed, the effective swap lists
+ * of this cpuset and all its descendants need to be updated.
+ *
+ * Call with cpuset_rwsem and callback_lock held.
+ */
 static void remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
 	struct cpuset *descendant;
@@ -2196,6 +2209,8 @@ static void remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 		if (descendant == cpuset)
 			 continue;
 
+		spin_lock_irqsave(&descendant->swap_lock, flags);
+
 		/*
 		 * Skip the subtree if the partition is already
 		 * disabled.
@@ -2205,8 +2220,9 @@ static void remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 			continue;
 		}
 
-		remove_from_swap_list(si,
-				&descendant->effective_swaps_head);
+		remove_from_swap_list(si, &descendant->effective_swaps_head);
+
+		spin_unlock_irqrestore(&descendant->swap_lock, flags);
 	}
 
 	rcu_read_unlock();
@@ -2988,12 +3004,17 @@ static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 	}
 
 	css_get(&cs->css);
+	percpu_down_write(&cpuset_rwsem);
+	spin_lock_irq(&callback_lock); // TODO: Can do at finer granularity in
+				       // add_swap and remove_swap.
 
 	if (enable)
 		 add_swap(cs, si);
 	else
 		 remove_swap(cs, si);
 
+	spin_unlock_irq(&callback_lock);
+	percpu_up_write(&cpuset_rwsem);
 	css_put(&cs->css);
 	put_swap_device(si);
 out_noswap:
