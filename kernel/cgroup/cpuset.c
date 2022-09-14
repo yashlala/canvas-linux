@@ -2255,12 +2255,12 @@ void cpuset_get_current_swaplist(struct plist_head **swap_list,
 void cpuset_put_current_swaplist()
 {
 		struct cpuset *cs;
+
 		rcu_read_lock();
-
 		cs = task_cs(current);
-		css_put(&cs->css);
-
 		rcu_read_unlock();
+
+		css_put(&cs->css);
 }
 
 /*
