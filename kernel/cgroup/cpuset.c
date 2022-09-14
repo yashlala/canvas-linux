@@ -2894,10 +2894,10 @@ out_unlock:
 	return retval ?: nbytes;
 }
 
-static void *swaps_common_seq_start(struct seq_file *sf, loff_t *spos)
+static void *swaps_common_seq_start(struct seq_file *seq, loff_t *spos)
 {
-	struct cpuset *cs = css_cs(seq_css(sf));
-	cpuset_filetype_t type = seq_cft(sf)->private;
+	struct cpuset *cs = css_cs(seq_css(seq));
+	cpuset_filetype_t type = seq_cft(seq)->private;
 	struct plist_head *swap_list;
 	struct plist_node *swap_pos;
 	loff_t pos = *spos;
@@ -2925,10 +2925,10 @@ static void *swaps_common_seq_start(struct seq_file *sf, loff_t *spos)
 	return NULL;
 }
 
-static void *swaps_common_seq_next(struct seq_file *sf, void *v, loff_t *ppos)
+static void *swaps_common_seq_next(struct seq_file *seq, void *v, loff_t *ppos)
 {
-	struct cpuset *cs = css_cs(seq_css(sf));
-	cpuset_filetype_t type = seq_cft(sf)->private;
+	struct cpuset *cs = css_cs(seq_css(seq));
+	cpuset_filetype_t type = seq_cft(seq)->private;
 	struct plist_head *swap_list;
 	struct plist_node *swap_pos = (struct plist_node *) v;
 
@@ -2979,7 +2979,7 @@ static void swaps_common_seq_stop(struct seq_file *seq, void *v)
  * TODO:
  *  - Add the "all" command for easy activate/deactivate.
  *  - Propagate state to children. Lock children via cgroup_kn_lock_live when
- *    implementing.
+ *    implementing?
  *  - Write should return a sensical length
  */
 static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
