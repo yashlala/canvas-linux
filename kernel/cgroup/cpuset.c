@@ -2305,8 +2305,6 @@ int cpuset_swapon(struct swap_info_struct *si)
  * cpuset_swapoff - remove a swap_info_struct from the cpuset controller
  *
  * Called during swapoff() syscall.
- *
- * TODO: Locking
  */
 void cpuset_swapoff(struct swap_info_struct *si)
 {
@@ -3552,7 +3550,6 @@ static void cpuset_css_offline(struct cgroup_subsys_state *css)
 		parent->child_ecpus_count--;
 	}
 
-	// TODO: Locking for all the cpuset_css functions.
 	put_swap_list(&cs->effective_swaps_head);
 	put_swap_list(&cs->swaps_allowed_head);
 
