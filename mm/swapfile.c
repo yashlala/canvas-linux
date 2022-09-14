@@ -2295,18 +2295,6 @@ static int setup_swap_extents(struct swap_info_struct *sis, sector_t *span)
 	return generic_swapfile_activate(sis, swap_file, span);
 }
 
-static int swap_node(struct swap_info_struct *p)
-{
-	struct block_device *bdev;
-
-	if (p->bdev)
-		bdev = p->bdev;
-	else
-		bdev = p->swap_file->f_inode->i_sb->s_bdev;
-
-	return bdev ? bdev->bd_disk->node_id : NUMA_NO_NODE;
-}
-
 static void setup_swap_info(struct swap_info_struct *p, int prio,
 			    unsigned char *swap_map,
 			    struct swap_cluster_info *cluster_info)
@@ -2720,7 +2708,6 @@ static struct swap_info_struct *alloc_swap_info(void)
 	struct swap_info_struct *p;
 	struct swap_info_struct *defer = NULL;
 	unsigned int type;
-	int i;
 
 	p = kvzalloc(sizeof(*p), GFP_KERNEL);
 	if (!p)
