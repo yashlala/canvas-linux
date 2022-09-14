@@ -1002,8 +1002,9 @@ static void swap_free_cluster(struct swap_info_struct *si, unsigned long idx)
 }
 
 
-int __get_swap_pages(struct plist_head *swap_list, spinlock_t *swap_list_lock,
-		int n_goal, swp_entry_t swp_entries[], int entry_size)
+static int __get_swap_pages(struct plist_head *swap_list,
+		spinlock_t *swap_list_lock, int n_goal,
+		swp_entry_t swp_entries[], int entry_size)
 {
 	unsigned long size = swap_entry_size(entry_size);
 	struct swap_node *sn, *sn_next;

@@ -2232,10 +2232,10 @@ static void decrement_subsequent_swap_prio(const struct swap_info_struct *si,
 /*
  * current_cpuset_swaplist - return available swap_info_structs
  *
- * Returns a
+ * Returns a TODO.
  *
  * The spinlock provided is only for swap list _access_.
- * Do not modify the returned
+ * Do not modify the returned TODO
  */
 void cpuset_get_current_swaplist(struct plist_head **swap_list,
 				spinlock_t **swap_lock)
