@@ -2311,8 +2311,6 @@ static void setup_swap_info(struct swap_info_struct *p, int prio,
 			    unsigned char *swap_map,
 			    struct swap_cluster_info *cluster_info)
 {
-	int i;
-
 	if (prio >= 0)
 		p->prio = prio;
 	else
@@ -2322,16 +2320,9 @@ static void setup_swap_info(struct swap_info_struct *p, int prio,
 	 * low-to-high, while swap ordering is high-to-low
 	 */
 	p->list.prio = -p->prio;
-	for_each_node(i) {
-		if (p->prio >= 0)
-			p->avail_lists[i].prio = -p->prio;
-		else {
-			if (swap_node(p) == i)
-				p->avail_lists[i].prio = 1;
-			else
-				p->avail_lists[i].prio = -p->prio;
-		}
-	}
+
+	// DID THE THING HERE. DECREMENT. 
+
 	p->swap_map = swap_map;
 	p->cluster_info = cluster_info;
 }
@@ -2731,7 +2722,7 @@ static struct swap_info_struct *alloc_swap_info(void)
 	unsigned int type;
 	int i;
 
-	p = kvzalloc(struct_size(p, avail_lists, nr_node_ids), GFP_KERNEL);
+	p = kvzalloc(sizeof(*p), GFP_KERNEL);
 	if (!p)
 		return ERR_PTR(-ENOMEM);
 
@@ -2770,8 +2761,6 @@ static struct swap_info_struct *alloc_swap_info(void)
 	}
 	p->swap_extent_root = RB_ROOT;
 	plist_node_init(&p->list, 0);
-	for_each_node(i)
-		plist_node_init(&p->avail_lists[i], 0);
 	p->flags = SWP_USED;
 	spin_unlock(&swap_lock);
 	if (defer) {
