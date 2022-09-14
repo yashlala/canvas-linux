@@ -2288,32 +2288,47 @@ void cpuset_put_current_swaplist()
  * cpuset_swapon - expose a new swap_info_struct to the cpuset controller
  *
  * Called during swapon() syscall.
- * TODO: Take locks
  */
 int cpuset_swapon(struct swap_info_struct *si)
 {
 	int ret = 0;
 
-	if ((ret = add_to_swap_list(si, &top_cpuset.effective_swaps_head)))
-		 return ret;
+	percpu_down_write(&cpuset_rwsem);
+
+	spin_lock_irq(&top_cpuset.swap_lock);
+	if ((ret = add_to_swap_list(si, &top_cpuset.effective_swaps_head))) {
+		spin_unlock_irq(&top_cpuset.swap_lock);
+		goto out;
+	}
+	spin_lock_irq(&top_cpuset.swap_lock);
 
 	ret = add_swap_hier(&top_cpuset, si);
+
+out:
+	percpu_up_write(&cpuset_rwsem);
 	return ret;
 }
 
 /*
  * cpuset_swapoff - remove a swap_info_struct from the cpuset controller
  *
- * Called during swapoff() syscall.
+ * Called during swapoff() syscall. The caller must be in user context.
  */
 void cpuset_swapoff(struct swap_info_struct *si)
 {
 	struct cpuset *cpuset;
 	struct cgroup_subsys_state *css_pos;
+	int prio;
 
+	spin_lock_irq(&si->lock);
+	prio = si->prio;
+	spin_unlock_irq(&si->lock);
+
+	percpu_down_write(&cpuset_rwsem);
 	rcu_read_lock();
 
 	cpuset_for_each_descendant_pre(cpuset, css_pos, &top_cpuset) {
+		spin_lock_irq(&cpuset->swap_lock);
 		/*
 		* Automatically assigned priorities (prio < 0) must be
 		* sequential.
@@ -2330,9 +2345,12 @@ void cpuset_swapoff(struct swap_info_struct *si)
 		}
 		remove_from_swap_list(si, &cpuset->effective_swaps_head);
 		remove_from_swap_list(si, &cpuset->swaps_allowed_head);
+
+		spin_unlock_irq(&cpuset->swap_lock);
 	}
 
 	rcu_read_unlock();
+	percpu_up_write(&cpuset_rwsem);
 }
 
 /**

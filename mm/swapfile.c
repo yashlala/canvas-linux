@@ -2310,8 +2310,6 @@ static void setup_swap_info(struct swap_info_struct *p, int prio,
 	 */
 	p->list.prio = -p->prio;
 
-	// DID THE THING HERE. DECREMENT. 
-
 	p->swap_map = swap_map;
 	p->cluster_info = cluster_info;
 }
@@ -2437,8 +2435,11 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 		goto out_dput;
 	}
 
-	spin_lock(&p->lock);
+	// PROBLEM: swap_lock is held here, which prevents us from using
+	// cpuset_rwsem. TODO TODO TODO HOW DO WE AVOID THIS
 	cpuset_swapoff(p);
+
+	spin_lock(&p->lock);
 	if (p->prio < 0) {
 		struct swap_info_struct *si = p;
 		plist_for_each_entry_continue(si, &swap_active_head, list) {
