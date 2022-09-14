@@ -437,6 +437,13 @@ static struct cpuset top_cpuset = {
 		if (is_cpuset_online(((des_cs) = css_cs((pos_css)))))
 
 /*
+ * TODO: Update this comment so it reflects the new lock structure:
+ * 1. cpuset_rwsem
+ * 2. callback_lock: protects all fields except for swaplist
+ * 3. cpuset->swap_lock: protects only swaplist fields
+ *
+ * ---
+ *
  * There are two global locks guarding cpuset structures - cpuset_rwsem and
  * callback_lock. We also require taking task_lock() when dereferencing a
  * task's cpuset pointer. See "The task_lock() exception", at the end of this
@@ -2088,8 +2095,6 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
  * When new swap devices are made available, the available and effective swap
  * lists of a cpuset's descendants need to be updated. This function doesn't
  * touch the root cpuset.
- *
- * TODO: Locks, refcounts.
  */
 static int add_swap_hier(struct cpuset *cpuset, struct swap_info_struct *si)
 {
@@ -2139,7 +2144,7 @@ err:
  * When configured swap list is changed, the effective swap lists of this
  * cpuset and all its descendants need to be updated.
  *
- * Call with cpuset_rwsem and callback_lock held.
+ * Call with cpuset_rwsem and held.
  */
 static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
@@ -3005,15 +3010,12 @@ static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 
 	css_get(&cs->css);
 	percpu_down_write(&cpuset_rwsem);
-	spin_lock_irq(&callback_lock); // TODO: Can do at finer granularity in
-				       // add_swap and remove_swap.
 
 	if (enable)
 		 add_swap(cs, si);
 	else
 		 remove_swap(cs, si);
 
-	spin_unlock_irq(&callback_lock);
 	percpu_up_write(&cpuset_rwsem);
 	css_put(&cs->css);
 	put_swap_device(si);
