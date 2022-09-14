@@ -3461,13 +3461,17 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 	else
 		 allowed_swaps = &parent->swaps_allowed_head;
 
+	spin_unlock_irq(&callback_lock);
+
+	spin_lock_irq(&parent->swap_lock);
+
 	if ((ret = copy_swap_list(&cs->swaps_allowed_head, allowed_swaps)))
 		 goto err;
 	if ((ret = copy_swap_list(&cs->effective_swaps_head,
 			&parent->effective_swaps_head)))
 		 goto err;
 
-	spin_unlock_irq(&callback_lock);
+	spin_unlock_irq(&parent->swap_lock);
 
 	if (!test_bit(CGRP_CPUSET_CLONE_CHILDREN, &css->cgroup->flags)) {
 		goto out_unlock;
@@ -3507,7 +3511,7 @@ out_unlock:
 	return 0;
 
 err:
-	spin_unlock_irq(&callback_lock);
+	spin_unlock_irq(&parent->swap_lock);
 	cpuset_dec();
 
 	clear_bit(CS_ONLINE, &cs->flags);
@@ -3551,8 +3555,10 @@ static void cpuset_css_offline(struct cgroup_subsys_state *css)
 		parent->child_ecpus_count--;
 	}
 
+	spin_lock_irq(&cs->swap_lock);
 	put_swap_list(&cs->effective_swaps_head);
 	put_swap_list(&cs->swaps_allowed_head);
+	spin_unlock_irq(&cs->swap_lock);
 
 	cpuset_dec();
 	clear_bit(CS_ONLINE, &cs->flags);
@@ -3568,8 +3574,8 @@ static void cpuset_css_free(struct cgroup_subsys_state *css)
 	free_cpuset(cs);
 }
 
-// TODO: If we want to support v1 (or initialize properly),
-// then we should put everything here on the swapon.
+// TODO: What's going on here? What purpose does this serve?
+// Is our swapon hook good enough?
 static void cpuset_bind(struct cgroup_subsys_state *root_css)
 {
 	percpu_down_write(&cpuset_rwsem);
