@@ -2212,6 +2212,23 @@ static void remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 	rcu_read_unlock();
 }
 
+static void decrement_subsequent_swap_prio(const struct swap_info_struct *si,
+		const struct plist_head *list)
+{
+	struct swap_node *pos;
+	bool found = false;
+
+	plist_for_each_entry(pos, list, plist) {
+		if (pos->si == si) {
+			 found = true;
+			 continue;
+		}
+
+		if (found)
+			pos->plist.prio--;
+	}
+}
+
 /*
  * current_cpuset_swaplist - return available swap_info_structs
  *
@@ -2278,6 +2295,20 @@ void cpuset_swapoff(struct swap_info_struct *si)
 	rcu_read_lock();
 
 	cpuset_for_each_descendant_pre(cpuset, css_pos, &top_cpuset) {
+		/*
+		* Automatically assigned priorities (prio < 0) must be
+		* sequential.
+		*
+		* If this node is being swapoff-ed and has an automatic
+		* priority, we increment all lower-priority nodes to prevent
+		* a priority "gap".
+		*/
+		if (si->prio < 0) {
+			decrement_subsequent_swap_prio(si,
+					&cpuset->effective_swaps_head);
+			decrement_subsequent_swap_prio(si,
+					&cpuset->swaps_allowed_head);
+		}
 		remove_from_swap_list(si, &cpuset->effective_swaps_head);
 		remove_from_swap_list(si, &cpuset->swaps_allowed_head);
 	}

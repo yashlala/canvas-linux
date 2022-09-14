@@ -2457,21 +2457,15 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 		goto out_dput;
 	}
 
-	// TODO: A lot more care and attention to this area.
-	cpuset_swapoff(p);
 	spin_lock(&p->lock);
+	cpuset_swapoff(p);
 	if (p->prio < 0) {
 		struct swap_info_struct *si = p;
-		int nid;
-
 		plist_for_each_entry_continue(si, &swap_active_head, list) {
 			si->prio++;
 			si->list.prio--;
-			for_each_node(nid) {
-				if (si->avail_lists[nid].prio != 1)
-					si->avail_lists[nid].prio--;
-			}
 		}
+
 		least_priority++;
 	}
 	plist_del(&p->list, &swap_active_head);
@@ -2484,7 +2478,11 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 	disable_swap_slots_cache_lock();
 
 	set_current_oom_origin();
-	err = try_to_unuse(p->type);
+	err = try_to_unuse(p->type); // TODO: remove from cgroups _after_ this?
+				     // Right now, a failed swapoff will remove
+				     // from all cgroups unconditionally (+
+				     // exact enable-disable state will break
+				     // after a failed swapoff)
 	clear_current_oom_origin();
 
 	if (err) {
