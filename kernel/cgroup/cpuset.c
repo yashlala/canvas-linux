@@ -2287,7 +2287,7 @@ void cpuset_put_current_swaplist()
 /*
  * cpuset_swapon - expose a new swap_info_struct to the cpuset controller
  *
- * Called during swapon() syscall.
+ * The caller must be in user context.
  */
 int cpuset_swapon(struct swap_info_struct *si)
 {
@@ -2312,7 +2312,7 @@ out:
 /*
  * cpuset_swapoff - remove a swap_info_struct from the cpuset controller
  *
- * Called during swapoff() syscall. The caller must be in user context.
+ * The caller must be in user context.
  */
 void cpuset_swapoff(struct swap_info_struct *si)
 {

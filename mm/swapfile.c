@@ -2435,10 +2435,6 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 		goto out_dput;
 	}
 
-	// PROBLEM: swap_lock is held here, which prevents us from using
-	// cpuset_rwsem. TODO TODO TODO HOW DO WE AVOID THIS
-	cpuset_swapoff(p);
-
 	spin_lock(&p->lock);
 	if (p->prio < 0) {
 		struct swap_info_struct *si = p;
@@ -2455,6 +2451,8 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 	p->flags &= ~SWP_WRITEOK;
 	spin_unlock(&p->lock);
 	spin_unlock(&swap_lock);
+
+	cpuset_swapoff(p);
 
 	disable_swap_slots_cache_lock();
 
