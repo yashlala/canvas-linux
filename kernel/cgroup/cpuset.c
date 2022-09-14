@@ -2894,6 +2894,8 @@ static void *swaps_common_seq_start(struct seq_file *sf, loff_t *spos)
 		return ERR_PTR(-EINVAL);
 	}
 
+	spin_lock_irq(&callback_lock);
+
 	// Seek to `spos`th swapfile in the list
 	plist_for_each(swap_pos, swap_list) {
 		if (pos-- == 0)
@@ -2941,7 +2943,7 @@ static int swaps_common_seq_show(struct seq_file *seq, void *v)
 
 static void swaps_common_seq_stop(struct seq_file *seq, void *v)
 {
-	// TODO: Add locks here
+	spin_unlock_irq(&callback_lock);
 }
 
 /*
