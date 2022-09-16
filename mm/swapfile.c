@@ -505,7 +505,6 @@ static void swap_users_ref_free(struct percpu_ref *ref)
 
 	si = container_of(ref, struct swap_info_struct, users);
 	complete(&si->comp);
-	kfree(si);
 }
 
 static void alloc_cluster(struct swap_info_struct *si, unsigned long idx)
@@ -2554,8 +2553,9 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 	filp_close(swap_file, NULL);
 
 	/*
-	 * Clear the SWP_USED flag after all resources are freed.
-	 * It is ok to not hold p->lock after we cleared its SWP_WRITEOK.
+	 * Clear the SWP_USED flag after all resources are freed so that swapon
+	 * can reuse this swap_info in alloc_swap_info() safely.  It is ok to
+	 * not hold p->lock after we cleared its SWP_WRITEOK.
 	 */
 	spin_lock(&swap_lock);
 	p->flags = 0;
