@@ -2300,6 +2300,9 @@ static void setup_swap_info(struct swap_info_struct *p, int prio,
 			    unsigned char *swap_map,
 			    struct swap_cluster_info *cluster_info)
 {
+	spin_lock(&swap_lock);
+	spin_lock(&p->lock);
+
 	if (prio >= 0)
 		p->prio = prio;
 	else
@@ -2310,19 +2313,25 @@ static void setup_swap_info(struct swap_info_struct *p, int prio,
 	 */
 	p->list.prio = -p->prio;
 
+	spin_unlock(&swap_lock);
+
 	p->swap_map = swap_map;
 	p->cluster_info = cluster_info;
+
+	spin_unlock(&p->lock);
 }
 
 static int _enable_swap_info(struct swap_info_struct *p)
 {
 	int err = 0;
 
+	spin_lock(&swap_lock);
+	spin_lock(&p->lock);
+
 	p->flags |= SWP_WRITEOK;
 	atomic_long_add(p->pages, &nr_swap_pages);
 	total_swap_pages += p->pages;
 
-	assert_spin_locked(&swap_lock);
 	/*
 	 * swap_active_head needs to be priority ordered for swapoff(),
 	 * which on removal of any swap_info_struct with an auto-assigned
@@ -2331,9 +2340,17 @@ static int _enable_swap_info(struct swap_info_struct *p)
 	 */
 	plist_add(&p->list, &swap_active_head);
 
+	spin_unlock(&p->lock);
+	spin_unlock(&swap_lock);
+
 	err = cpuset_swapon(p);
-	if (err)
-		 plist_del(&p->list, &swap_active_head);
+	if (err) {
+		spin_lock(&swap_lock);
+		spin_lock(&p->lock);
+		plist_del(&p->list, &swap_active_head);
+		spin_unlock(&swap_lock);
+		spin_unlock(&p->lock);
+	}
 	return err;
 }
 
@@ -2346,32 +2363,21 @@ static int enable_swap_info(struct swap_info_struct *p, int prio,
 
 	if (IS_ENABLED(CONFIG_FRONTSWAP))
 		frontswap_init(p->type, frontswap_map);
-	spin_lock(&swap_lock);
-	spin_lock(&p->lock);
 	setup_swap_info(p, prio, swap_map, cluster_info);
-	spin_unlock(&p->lock);
-	spin_unlock(&swap_lock);
+
 	/*
 	 * Finished initializing swap device, now it's safe to reference it.
 	 */
 	percpu_ref_resurrect(&p->users);
-	spin_lock(&swap_lock);
-	spin_lock(&p->lock);
 	if ((error = _enable_swap_info(p)))
 		 percpu_ref_kill(&p->users);
-	spin_unlock(&p->lock);
-	spin_unlock(&swap_lock);
 	return error;
 }
 
 static void reinsert_swap_info(struct swap_info_struct *p)
 {
-	spin_lock(&swap_lock);
-	spin_lock(&p->lock);
 	setup_swap_info(p, p->prio, p->swap_map, p->cluster_info);
 	_enable_swap_info(p);
-	spin_unlock(&p->lock);
-	spin_unlock(&swap_lock);
 }
 
 bool has_usable_swap(void)
