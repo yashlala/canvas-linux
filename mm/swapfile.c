@@ -1042,6 +1042,7 @@ start_over:
 			spin_lock(swap_list_lock);
 			if (plist_node_empty(&sn->plist)) {
 				spin_unlock(&sn->si->lock);
+				percpu_ref_put(&sn->si->users);
 				goto nextsi;
 			}
 			WARN(!sn->si->highest_bit,
