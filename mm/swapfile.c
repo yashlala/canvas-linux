@@ -2370,8 +2370,7 @@ static int enable_swap_info(struct swap_info_struct *p, int prio,
 	 * Finished initializing swap device, now it's safe to reference it.
 	 */
 	percpu_ref_resurrect(&p->users);
-	if ((error = _enable_swap_info(p)))
-		 percpu_ref_kill(&p->users);
+	error = _enable_swap_info(p);
 	return error;
 }
 
@@ -3237,6 +3236,7 @@ bad_swap:
 	vfree(swap_map);
 	kvfree(cluster_info);
 	kvfree(frontswap_map);
+	percpu_ref_kill(&p->users);
 	if (inced_nr_rotate_swap)
 		atomic_dec(&nr_rotate_swap);
 	if (swap_file)
