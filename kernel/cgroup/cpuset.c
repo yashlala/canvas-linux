@@ -2300,6 +2300,7 @@ int cpuset_swapon(struct swap_info_struct *si)
 		spin_unlock(&top_cpuset.swap_lock);
 		goto out;
 	}
+	percpu_ref_get(&si->users);
 	spin_unlock(&top_cpuset.swap_lock);
 
 	ret = add_swap_hier(&top_cpuset, si);
