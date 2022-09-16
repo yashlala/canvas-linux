@@ -317,7 +317,7 @@ static inline bool in_allowed_swaps(const struct swap_info_struct *si,
 	return in_swap_list(si, &cs->swaps_allowed_head);
 }
 
-// Call with lists locked
+// Call with lists locked and an active reference to si.
 static int __add_to_swap_list(struct swap_info_struct *si,
 		struct plist_head *list)
 {
@@ -2093,6 +2093,8 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
  * When new swap devices are made available, the available and effective swap
  * lists of a cpuset's descendants need to be updated. This function doesn't
  * touch the root cpuset.
+ *
+ * The caller must hold a reference to @si.
  */
 static int add_swap_hier(struct cpuset *cpuset, struct swap_info_struct *si)
 {
@@ -2285,7 +2287,7 @@ void cpuset_put_current_swaplist()
 /*
  * cpuset_swapon - expose a new swap_info_struct to the cpuset controller
  *
- * The caller must be in process context.
+ * The caller must hold a reference to @si.
  */
 int cpuset_swapon(struct swap_info_struct *si)
 {
@@ -2310,7 +2312,7 @@ out:
 /*
  * cpuset_swapoff - remove a swap_info_struct from the cpuset controller
  *
- * The caller must be in process context.
+ * The caller must hold a reference to @si.
  */
 void cpuset_swapoff(struct swap_info_struct *si)
 {
