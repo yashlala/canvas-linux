@@ -323,9 +323,6 @@ static int __add_to_swap_list(struct swap_info_struct *si,
 {
 	struct swap_node *node;
 
-	percpu_ref_get(&si->users);
-	smp_wmb();
-
 	// TODO: We need more swap when memory is low. But low memory means
 	// that GFP_NOWAIT will fail.
 	// We need GFP_NOWAIT because this function is called under spinlock
@@ -337,6 +334,7 @@ static int __add_to_swap_list(struct swap_info_struct *si,
 
 	plist_node_init(&node->plist, si->prio);
 	node->si = si;
+	percpu_ref_get(&si->users);
 
 	plist_add(&node->plist, list);
 	return 0;
