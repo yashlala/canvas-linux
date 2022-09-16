@@ -356,10 +356,10 @@ static void remove_from_swap_list(struct swap_info_struct *si,
 		if (node->si == si) {
 			plist_del(&node->plist, list);
 			kfree(node);
-			break;
+			percpu_ref_put(&si->users);
+			return;
 		}
 	}
-	percpu_ref_put(&si->users);
 }
 
 static void put_swap_list(struct plist_head *swap_list)
