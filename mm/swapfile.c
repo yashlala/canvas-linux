@@ -1031,6 +1031,9 @@ static int __get_swap_pages(struct plist_head *swap_list,
 start_over:
 	node = numa_node_id();
 	plist_for_each_entry_safe(sn, sn_next, swap_list, plist) {
+		percpu_ref_get(&sn->si->users); // TODO: is refcounting really
+						// necessary here?
+
 		/* requeue sn to after same-priority siblings */
 		plist_requeue(&sn->plist, swap_list);
 		spin_unlock(swap_list_lock);
@@ -1050,6 +1053,7 @@ start_over:
 			// This would be a good spot to put our avail tracking.
 			// __del_from_avail_list(sn->si); // Make per-si later
 			spin_unlock(&sn->si->lock);
+			percpu_ref_put(&sn->si->users);
 			goto nextsi;
 		}
 		if (size == SWAPFILE_CLUSTER) {
@@ -1059,11 +1063,14 @@ start_over:
 			n_ret = scan_swap_map_slots(sn->si, SWAP_HAS_CACHE,
 						    n_goal, swp_entries);
 		spin_unlock(&sn->si->lock);
-		if (n_ret || size == SWAPFILE_CLUSTER)
+		if (n_ret || size == SWAPFILE_CLUSTER) {
+			percpu_ref_put(&sn->si->users);
 			goto check_out;
+		}
 		pr_debug("scan_swap_map of si %d failed to find offset\n",
 			sn->si->type);
 
+		percpu_ref_put(&sn->si->users);
 		spin_lock(swap_list_lock);
 nextsi:
 		/*
