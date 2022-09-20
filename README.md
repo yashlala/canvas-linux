@@ -102,9 +102,10 @@ Common Problems:
 	 functionality, but it could be convenient.
   2. [ ] Clean up code, remove/polish comments
   3. [ ] Address the issues in commit f26411821d9b.
-  4. [ ] Update documentation to reflect final API
-  5. [ ] Address all TODOs in code.
-  6. [ ] Send patchset to kernel mailing list
+  4. [ ] Address the issues in commit defd274efade.
+  5. [ ] Update documentation to reflect final API
+  6. [ ] Address all TODOs in code.
+  7. [ ] Send patchset to kernel mailing list
 
 - Phase ?: Future work?
   1. [ ] Migrate already-swapped pages to per-cgroup swap partitions.
