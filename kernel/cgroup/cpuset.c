@@ -2990,10 +2990,9 @@ static void swaps_common_seq_stop(struct seq_file *seq, void *v)
  *
  * NOTE: Priorities are global right now. Think whether we want this.
  * NOTE: Strip => can't remove swapfiles ending in a newline.
+ *
  * TODO:
  *  - Add the "all" command for easy activate/deactivate.
- *  - Propagate state to children. Lock children via cgroup_kn_lock_live when
- *    implementing?
  *  - Write should return a sensical length
  */
 static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
