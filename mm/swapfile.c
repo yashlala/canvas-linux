@@ -3236,7 +3236,6 @@ bad_swap:
 	vfree(swap_map);
 	kvfree(cluster_info);
 	kvfree(frontswap_map);
-	percpu_ref_kill(&p->users);
 	if (inced_nr_rotate_swap)
 		atomic_dec(&nr_rotate_swap);
 	if (swap_file)

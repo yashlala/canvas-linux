@@ -332,10 +332,8 @@ static int __add_to_swap_list(struct swap_info_struct *si,
 	if (!(node = kmalloc(sizeof(*node), GFP_NOWAIT)))
 		 return -ENOMEM;
 
-	plist_node_init(&node->plist, si->prio);
 	node->si = si;
-	percpu_ref_get(&si->users);
-
+	plist_node_init(&node->plist, si->prio);
 	plist_add(&node->plist, list);
 	return 0;
 }
@@ -354,7 +352,6 @@ static void remove_from_swap_list(struct swap_info_struct *si,
 	struct swap_node *node;
 	plist_for_each_entry(node, list, plist) {
 		if (node->si == si) {
-			percpu_ref_put(&si->users);
 			plist_del(&node->plist, list);
 			kfree(node);
 			return;
@@ -366,7 +363,6 @@ static void put_swap_list(struct plist_head *swap_list)
 {
 	struct swap_node *node, *tmp;
 	plist_for_each_entry_safe(node, tmp, swap_list, plist) {
-		percpu_ref_put(&node->si->users);
 		plist_del(&node->plist, swap_list);
 		kfree(node);
 	}
@@ -2300,7 +2296,6 @@ int cpuset_swapon(struct swap_info_struct *si)
 		spin_unlock(&top_cpuset.swap_lock);
 		goto out;
 	}
-	percpu_ref_get(&si->users);
 	spin_unlock(&top_cpuset.swap_lock);
 
 	ret = add_swap_hier(&top_cpuset, si);
