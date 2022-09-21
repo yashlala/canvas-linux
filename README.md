@@ -78,7 +78,7 @@ Common Problems:
   3. Set up locks. We ignored race conditions until now; finalize locking,
      refcounts, etc. Remember to compile with `CONFIG_DEBUG_ATOMIC_SLEEP`.
      - [X] Implement locking
-     - [ ] Fix refcount bugs
+     - [X] Fix refcount bugs
   5. [ ] Thorough robustness testing (in particular 3.2 and 3.3); couldn't
          test 3.3 before because of refcount issues.
   6. [ ] Set up edge cases:
