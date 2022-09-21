@@ -2316,15 +2316,15 @@ void cpuset_swapoff(struct swap_info_struct *si)
 	struct cgroup_subsys_state *css_pos;
 	int prio;
 
-	spin_lock_irq(&si->lock);
+	spin_lock(&si->lock);
 	prio = si->prio;
-	spin_unlock_irq(&si->lock);
+	spin_unlock(&si->lock);
 
 	percpu_down_write(&cpuset_rwsem);
 	rcu_read_lock();
 
 	cpuset_for_each_descendant_pre(cpuset, css_pos, &top_cpuset) {
-		spin_lock_irq(&cpuset->swap_lock);
+		spin_lock(&cpuset->swap_lock);
 		/*
 		* Automatically assigned priorities (prio < 0) must be
 		* sequential.
@@ -2342,7 +2342,7 @@ void cpuset_swapoff(struct swap_info_struct *si)
 		remove_from_swap_list(si, &cpuset->effective_swaps_head);
 		remove_from_swap_list(si, &cpuset->swaps_allowed_head);
 
-		spin_unlock_irq(&cpuset->swap_lock);
+		spin_unlock(&cpuset->swap_lock);
 	}
 
 	rcu_read_unlock();
