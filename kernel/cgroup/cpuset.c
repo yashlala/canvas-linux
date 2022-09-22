@@ -2308,7 +2308,8 @@ out:
 /*
  * cpuset_swapoff - remove a swap_info_struct from the cpuset controller
  *
- * The caller must hold a reference to @si.
+ * The caller must hold a reference to @si to prevent @si from swapoff
+ * during this operation.
  */
 void cpuset_swapoff(struct swap_info_struct *si)
 {

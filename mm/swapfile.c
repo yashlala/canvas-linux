@@ -670,7 +670,6 @@ static void swap_range_alloc(struct swap_info_struct *si, unsigned long offset,
 	if (si->inuse_pages == si->pages) {
 		si->lowest_bit = si->max;
 		si->highest_bit = 0;
-		// This is a good spot to update our atomic flags.
 	}
 }
 
@@ -684,13 +683,7 @@ static void swap_range_free(struct swap_info_struct *si, unsigned long offset,
 	if (offset < si->lowest_bit)
 		si->lowest_bit = offset;
 	if (end > si->highest_bit) {
-		// bool was_full = !si->highest_bit;
-
 		WRITE_ONCE(si->highest_bit, end);
-		// NOTE: This may be a good point to update our "avail" atomic flag.
-		//
-		// if (was_full && (si->flags & SWP_WRITEOK))
-		// 	add_to_avail_list(si);
 	}
 	atomic_long_add(nr_entries, &nr_swap_pages);
 	si->inuse_pages -= nr_entries;
@@ -1033,25 +1026,22 @@ start_over:
 	plist_for_each_entry_safe(sn, sn_next, swap_list, plist) {
 		/* requeue sn to after same-priority siblings */
 		plist_requeue(&sn->plist, swap_list);
-		spin_unlock(swap_list_lock);
+
 		spin_lock(&sn->si->lock);
-		if (!sn->si->highest_bit || !(sn->si->flags & SWP_WRITEOK)) {
-			spin_lock(swap_list_lock);
-			if (plist_node_empty(&sn->plist)) {
-				spin_unlock(&sn->si->lock);
-				goto nextsi;
-			}
-			WARN(!sn->si->highest_bit,
-			     "swap_info %d in list but !highest_bit\n",
-			     sn->si->type);
-			WARN(!(sn->si->flags & SWP_WRITEOK),
-			     "swap_info %d in list but !SWP_WRITEOK\n",
-			     sn->si->type);
-			// This would be a good spot to put our avail tracking.
-			// __del_from_avail_list(sn->si); // Make per-si later
+		if (!(sn->si->flags & SWP_WRITEOK)) {
+			pr_warn("swap_info %d in list but !SWP_WRITEOK, "
+					"removing from effective list\n",
+					sn->si->type);
+			plist_del(&sn->plist, swap_list);
 			spin_unlock(&sn->si->lock);
-			goto nextsi;
+			continue;
 		}
+		if (!sn->si->highest_bit || plist_node_empty(&sn->plist)) {
+			spin_unlock(&sn->si->lock);
+			continue;
+		}
+		spin_unlock(swap_list_lock);
+
 		if (size == SWAPFILE_CLUSTER) {
 			if (sn->si->flags & SWP_BLKDEV)
 				n_ret = swap_alloc_cluster(sn->si, swp_entries);
@@ -1065,20 +1055,6 @@ start_over:
 			sn->si->type);
 
 		spin_lock(swap_list_lock);
-nextsi:
-		/*
-		 * if we got here, it's likely that si was almost full before,
-		 * and since scan_swap_map_slots() can drop the si->lock,
-		 * multiple callers probably all tried to get a page from the
-		 * same si and it filled up before we could get one; or, the si
-		 * filled up between us dropping swap_avail_lock and taking
-		 * si->lock. Since we dropped the swap_avail_lock, the
-		 * swap_avail_head list may have been modified; so if next is
-		 * still in the swap_avail_head list then try it, otherwise
-		 * start over if we have not gotten any slots.
-		 */
-		if (plist_node_empty(&sn_next->plist))
-			goto start_over;
 	}
 
 	spin_unlock(swap_list_lock);
