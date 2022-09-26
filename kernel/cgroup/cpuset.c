@@ -2175,7 +2175,7 @@ err:
 	return ret;
 }
 
-static int add_all_swap(struct cpuset *cpuset)
+static int add_all_swap(struct cpuset *cs)
 {
 	struct swap_node *pos;
 	int ret = 0;
