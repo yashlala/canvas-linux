@@ -2175,6 +2175,23 @@ err:
 	return ret;
 }
 
+static int add_all_swap(struct cpuset *cpuset)
+{
+	struct swap_node *pos;
+	int ret = 0;
+
+	spin_lock(&top_cpuset.swap_lock);
+	plist_for_each_entry(pos, &top_cpuset.effective_swaps_head, plist) {
+			spin_unlock(&top_cpuset.swap_lock);
+			if ((ret = add_swap(cs, pos->si)))
+					 return ret;
+			spin_lock(&top_cpuset.swap_lock);
+	}
+	spin_unlock(&top_cpuset.swap_lock);
+
+	return ret;
+}
+
 /*
  * remove_swap - Remove a partition from swap lists in the subtree
  * @cs:  the cpuset to consider
@@ -2227,6 +2244,18 @@ static void remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 	}
 
 	rcu_read_unlock();
+}
+
+static void remove_all_swap(struct cpuset *cs)
+{
+		struct swap_node *pos;
+		spin_lock(&top_cpuset.swap_lock);
+		plist_for_each_entry(pos, &top_cpuset.effective_swaps_head, plist) {
+				spin_unlock(&top_cpuset.swap_lock);
+				remove_swap(cs, pos->si);
+				spin_lock(&top_cpuset.swap_lock);
+		}
+		spin_unlock(&top_cpuset.swap_lock);
 }
 
 static void decrement_subsequent_swap_prio(const struct swap_info_struct *si,
@@ -2986,19 +3015,15 @@ static void swaps_common_seq_stop(struct seq_file *seq, void *v)
  *
  * Every write should take the form of "+/new/swap/dev" or "-/old/swap/dev".
  * Only a single swap partition can be onlined or offlined per write.
- *
- * TODO:
- *  - Add the "all" command for easy activate/deactivate.
- *  - Write should return a sensical length
  */
 static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 		size_t nbytes, loff_t off)
 {
 	struct cpuset *cs = css_cs(of_css(of));
-	bool enable;
+	bool enable, all;
 	struct filename *name;
 	struct swap_info_struct *si;
-	ssize_t ret = nbytes;
+	ssize_t err;
 
 	buf = strstrip(buf);
 
@@ -3006,30 +3031,51 @@ static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 		 return -EINVAL;
 
 	enable = buf[0] == '+';
+	all = !strcmp(&buf[1], "all");
+
+	if (all) {
+		css_get(&cs->css);
+		percpu_down_write(&cpuset_rwsem);
+
+		if (enable)
+			 err = add_all_swap(cs);
+		else
+			 remove_all_swap(cs);
+
+		css_put(&cs->css);
+		percpu_up_write(&cpuset_rwsem);
+		goto out;
+	}
+
 	name = getname_kernel(buf + 1);
 	if (IS_ERR(name))
 		return PTR_ERR(name);
 
 	si = get_swap_device_from_filename(name);
 	if (IS_ERR(si)) {
-		 ret = PTR_ERR(si);
-		 goto out_noswap;
+		 err = PTR_ERR(si);
+		 goto out_free;
 	}
 
 	css_get(&cs->css);
 	percpu_down_write(&cpuset_rwsem);
 
-	if (enable)
-		 add_swap(cs, si);
-	else
-		 remove_swap(cs, si);
+	if (enable) {
+			if ((err = add_swap(cs, si)))
+					goto out_unlock;
+	} else {
+			remove_swap(cs, si);
+	}
 
+out_unlock:
 	percpu_up_write(&cpuset_rwsem);
 	css_put(&cs->css);
 	put_swap_device(si);
-out_noswap:
+
+out_free:
 	putname(name);
-	return ret;
+out:
+	return err ?: nbytes;
 }
 
 /*
