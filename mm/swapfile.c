@@ -1021,7 +1021,6 @@ static int __get_swap_pages(struct plist_head *swap_list,
 
 	atomic_long_sub(n_goal * size, &nr_swap_pages);
 
-start_over:
 	node = numa_node_id();
 	plist_for_each_entry_safe(sn, sn_next, swap_list, plist) {
 		/* requeue sn to after same-priority siblings */
