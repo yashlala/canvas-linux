@@ -2985,12 +2985,7 @@ static void swaps_common_seq_stop(struct seq_file *seq, void *v)
  * Handles writes to the "cpuset.swaps" file.
  *
  * Every write should take the form of "+/new/swap/dev" or "-/old/swap/dev".
- * Only a single swap partition can be onlined or offlined per write, and no
- * string stripping is done. This allows swap files with spaces in the path,
- * and allows for more informative error messages.
- *
- * NOTE: Priorities are global right now. Think whether we want this.
- * NOTE: Strip => can't remove swapfiles ending in a newline.
+ * Only a single swap partition can be onlined or offlined per write.
  *
  * TODO:
  *  - Add the "all" command for easy activate/deactivate.
@@ -3045,7 +3040,7 @@ out_noswap:
  * and since these maps can change value dynamically, one could read
  * gibberish by doing partial reads while a list was changing.
  */
-static int cpuset_common_seq_show(struct seq_file *sf, void *v)
+static int cpuset_mask_seq_show(struct seq_file *sf, void *v)
 {
 	struct cpuset *cs = css_cs(seq_css(sf));
 	cpuset_filetype_t type = seq_cft(sf)->private;
@@ -3183,7 +3178,7 @@ out_unlock:
 static struct cftype legacy_files[] = {
 	{
 		.name = "cpus",
-		.seq_show = cpuset_common_seq_show,
+		.seq_show = cpuset_mask_seq_show,
 		.write = cpuset_write_resmask,
 		.max_write_len = (100U + 6 * NR_CPUS),
 		.private = FILE_CPULIST,
@@ -3191,7 +3186,7 @@ static struct cftype legacy_files[] = {
 
 	{
 		.name = "mems",
-		.seq_show = cpuset_common_seq_show,
+		.seq_show = cpuset_mask_seq_show,
 		.write = cpuset_write_resmask,
 		.max_write_len = (100U + 6 * MAX_NUMNODES),
 		.private = FILE_MEMLIST,
@@ -3199,13 +3194,13 @@ static struct cftype legacy_files[] = {
 
 	{
 		.name = "effective_cpus",
-		.seq_show = cpuset_common_seq_show,
+		.seq_show = cpuset_mask_seq_show,
 		.private = FILE_EFFECTIVE_CPULIST,
 	},
 
 	{
 		.name = "effective_mems",
-		.seq_show = cpuset_common_seq_show,
+		.seq_show = cpuset_mask_seq_show,
 		.private = FILE_EFFECTIVE_MEMLIST,
 	},
 
@@ -3321,7 +3316,7 @@ static struct cftype legacy_files[] = {
 static struct cftype dfl_files[] = {
 	{
 		.name = "cpus",
-		.seq_show = cpuset_common_seq_show,
+		.seq_show = cpuset_mask_seq_show,
 		.write = cpuset_write_resmask,
 		.max_write_len = (100U + 6 * NR_CPUS),
 		.private = FILE_CPULIST,
@@ -3330,7 +3325,7 @@ static struct cftype dfl_files[] = {
 
 	{
 		.name = "mems",
-		.seq_show = cpuset_common_seq_show,
+		.seq_show = cpuset_mask_seq_show,
 		.write = cpuset_write_resmask,
 		.max_write_len = (100U + 6 * MAX_NUMNODES),
 		.private = FILE_MEMLIST,
@@ -3339,13 +3334,13 @@ static struct cftype dfl_files[] = {
 
 	{
 		.name = "cpus.effective",
-		.seq_show = cpuset_common_seq_show,
+		.seq_show = cpuset_mask_seq_show,
 		.private = FILE_EFFECTIVE_CPULIST,
 	},
 
 	{
 		.name = "mems.effective",
-		.seq_show = cpuset_common_seq_show,
+		.seq_show = cpuset_mask_seq_show,
 		.private = FILE_EFFECTIVE_MEMLIST,
 	},
 
@@ -3360,7 +3355,7 @@ static struct cftype dfl_files[] = {
 
 	{
 		.name = "cpus.subpartitions",
-		.seq_show = cpuset_common_seq_show,
+		.seq_show = cpuset_mask_seq_show,
 		.private = FILE_SUBPARTS_CPULIST,
 		.flags = CFTYPE_DEBUG,
 	},
