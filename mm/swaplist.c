@@ -63,3 +63,20 @@ void remove_from_swaplist(struct swap_info_struct *si,
 		}
 	}
 }
+
+void decrement_subsequent_swap_prio(struct swap_info_struct *si,
+		struct plist_head *list)
+{
+	struct swap_node *pos;
+	bool found = false;
+
+	plist_for_each_entry(pos, list, plist) {
+		if (pos->si == si) {
+			 found = true;
+			 continue;
+		}
+
+		if (found)
+			pos->plist.prio--;
+	}
+}
