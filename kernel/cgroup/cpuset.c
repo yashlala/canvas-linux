@@ -3251,38 +3251,6 @@ static struct cftype legacy_files[] = {
 		.private = FILE_MEMORY_PRESSURE_ENABLED,
 	},
 
-	{
-		.name = "swaps",
-		.seq_show = swaps_common_seq_show,
-		.seq_start = swaps_common_seq_start,
-		.seq_next = swaps_common_seq_next,
-		.seq_stop = swaps_common_seq_stop,
-		.write = swaps_write,
-		.max_write_len = PATH_MAX + 1,
-		.private = FILE_SWAPLIST,
-		.flags = CFTYPE_NOT_ON_ROOT,
-	},
-
-	// TODO: Apparently default cgroupv1 has 'effective' as a read only
-	// version regular, unless 'cpuset_v2_mode' mount option is set.
-	// We should implement this behavior if we want cgroupv1 support.
-	// Also, we should heed CGRP_CPUSET_CLONE_CHILDREN.
-	{
-		.name = "effective_swaps",
-		.seq_show = swaps_common_seq_show,
-		.seq_start = swaps_common_seq_start,
-		.seq_next = swaps_common_seq_next,
-		.seq_stop = swaps_common_seq_stop,
-		.private = FILE_EFFECTIVE_SWAPLIST,
-	},
-
-	{
-		.name = "lock_swap_subtree",
-		.read_u64 = cpuset_read_u64,
-		.write_u64 = cpuset_write_u64,
-		.private = FILE_SWAP_SUBTREE_LOCKED,
-	},
-
 	{ }	/* terminate */
 };
 
