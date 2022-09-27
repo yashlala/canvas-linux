@@ -1,5 +1,5 @@
 /*
- *  mm/swaplist.c
+ *  mm/swap_list.c
  *
  *  Helper functions for managing plists of swap devices
  *
@@ -11,10 +11,10 @@
  *  distribution for more details.
  */
 
-#include <linux/swaplist.h>
+#include <linux/swap_list.h>
 
 // Call with the lists locked
-bool in_swaplist(struct swap_info_struct *si, struct plist_head *list)
+bool in_swap_list(struct swap_info_struct *si, struct plist_head *list)
 {
 	struct swap_node *pos;
 	plist_for_each_entry(pos, list, plist) {
@@ -24,7 +24,7 @@ bool in_swaplist(struct swap_info_struct *si, struct plist_head *list)
 	return false;
 }
 
-int __add_to_swaplist(struct swap_info_struct *si,
+int __add_to_swap_list(struct swap_info_struct *si,
 		struct plist_head *list)
 {
 	struct swap_node *node;
@@ -44,14 +44,14 @@ int __add_to_swaplist(struct swap_info_struct *si,
 	return 0;
 }
 
-int add_to_swaplist(struct swap_info_struct *si, struct plist_head *list)
+int add_to_swap_list(struct swap_info_struct *si, struct plist_head *list)
 {
-	if (in_swaplist(si, list))
+	if (in_swap_list(si, list))
 		 return 0;
-	return __add_to_swaplist(si, list);
+	return __add_to_swap_list(si, list);
 }
 
-void remove_from_swaplist(struct swap_info_struct *si,
+void remove_from_swap_list(struct swap_info_struct *si,
 		struct plist_head *list)
 {
 	struct swap_node *node;

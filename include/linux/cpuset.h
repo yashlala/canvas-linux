@@ -18,6 +18,10 @@
 #include <linux/mmu_context.h>
 #include <linux/jump_label.h>
 
+struct swap_node {
+	struct swap_info_struct *si;
+	struct plist_node plist;
+};
 
 #ifdef CONFIG_CPUSETS
 
@@ -179,12 +183,11 @@ static inline void set_mems_allowed(nodemask_t nodemask)
 	task_unlock(current);
 }
 
-// TODO: Methods ifndef cpuset
-int cpuset_add_to_swaplist(struct swap_info_struct *si);
-void cpuset_remove_from_swaplist(struct swap_info_struct *si);
-void cpuset_get_current_swaplist(struct plist_head **swap_list,
+int cpuset_add_to_swap_list(struct swap_info_struct *si);
+void cpuset_remove_from_swap_list(struct swap_info_struct *si);
+void cpuset_get_current_swap_list(struct plist_head **swap_list,
 				spinlock_t **swap_lock);
-void cpuset_put_current_swaplist(void);
+void cpuset_put_current_swap_list(void);
 
 #else /* !CONFIG_CPUSETS */
 

@@ -23,7 +23,7 @@
  */
 
 #include <linux/swap.h>
-#include <linux/swaplist.h>
+#include <linux/swap_list.h>
 #include <linux/swapfile.h>
 #include <linux/cpu.h>
 #include <linux/cpumask.h>
@@ -2206,14 +2206,14 @@ static void remove_all_swap(struct cpuset *cs)
 }
 
 /*
- * current_cpuset_swaplist - return available swap_info_structs
+ * current_cpuset_swap_list - return available swap_info_structs
  *
  * Returns a TODO.
  *
  * The spinlock provided is only for swap list _access_.
  * Do not modify the returned TODO
  */
-void cpuset_get_current_swaplist(struct plist_head **swap_list,
+void cpuset_get_current_swap_list(struct plist_head **swap_list,
 				spinlock_t **swap_lock)
 {
 		struct cpuset *cs;
@@ -2228,7 +2228,7 @@ void cpuset_get_current_swaplist(struct plist_head **swap_list,
 		rcu_read_unlock();
 }
 
-void cpuset_put_current_swaplist()
+void cpuset_put_current_swap_list()
 {
 		struct cpuset *cs;
 
@@ -2240,12 +2240,12 @@ void cpuset_put_current_swaplist()
 }
 
 /*
- * cpuset_add_to_swaplist - expose a new swap_info to the cpuset controller
+ * cpuset_add_to_swap_list - expose a new swap_info to the cpuset controller
  *
  * The caller must hold a reference to @si.
  * TODO: Rename.
  */
-int cpuset_add_to_swaplist(struct swap_info_struct *si)
+int cpuset_add_to_swap_list(struct swap_info_struct *si)
 {
 	int ret = 0;
 
@@ -2266,12 +2266,12 @@ out:
 }
 
 /*
- * cpuset_remove_from_swaplist - remove a swap_info from the cpuset controller
+ * cpuset_remove_from_swap_list - remove a swap_info from the cpuset controller
  *
  * The caller must hold a reference to @si to prevent @si from swapoff
  * during this operation.
  */
-void cpuset_remove_from_swaplist(struct swap_info_struct *si)
+void cpuset_remove_from_swap_list(struct swap_info_struct *si)
 {
 	struct cpuset *cpuset;
 	struct cgroup_subsys_state *css_pos;
