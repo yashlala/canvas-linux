@@ -2954,7 +2954,7 @@ static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 	bool enable, all;
 	struct filename *name;
 	struct swap_info_struct *si;
-	ssize_t err;
+	ssize_t err = 0;
 
 	buf = strstrip(buf);
 
