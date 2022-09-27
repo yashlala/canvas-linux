@@ -2379,7 +2379,7 @@ static int _enable_swap_info(struct swap_info_struct *p)
 	spin_unlock(&p->lock);
 	spin_unlock(&swap_lock);
 
-	err = cpuset_add_to_swap_list(p);
+	err = add_to_current_swap_list(p);
 	if (err) {
 		spin_lock(&swap_lock);
 		spin_lock(&p->lock);
@@ -2493,7 +2493,7 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 	spin_unlock(&p->lock);
 	spin_unlock(&swap_lock);
 
-	remove_from_swap_list(p);
+	remove_from_current_swap_list(p);
 
 	disable_swap_slots_cache_lock();
 
