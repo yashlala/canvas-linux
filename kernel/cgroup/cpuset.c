@@ -23,7 +23,7 @@
  */
 
 #include <linux/swap.h>
-#include <linux/swap_list.h>
+#include <linux/swaplist.h>
 #include <linux/swapfile.h>
 #include <linux/cpu.h>
 #include <linux/cpumask.h>
