@@ -1107,7 +1107,6 @@ static inline void get_current_swaplist(struct plist_head **swap_list,
 static void put_current_swaplist(void) {}
 
 // TODO: Consistency in which methods need locking
-// And in underscores and such for the names
 static int add_to_current_swaplist(struct swap_info_struct *si)
 {
 	int ret = 0;
@@ -1120,6 +1119,8 @@ static int add_to_current_swaplist(struct swap_info_struct *si)
 static void remove_from_current_swaplist(struct swap_info_struct *si)
 {
 	spin_lock(&swaplist_lock);
+	if (si->prio < 0)
+		decrement_subsequent_swap_prio(si, &swaplist_head);
 	remove_from_swap_list(si, &swaplist_head);
 	spin_unlock(&swaplist_lock);
 }
