@@ -118,15 +118,17 @@ struct cpuset {
 	/* user-configured CPUs and Memory Nodes allow to tasks */
 	cpumask_var_t cpus_allowed;
 	nodemask_t mems_allowed;
-	// TODO: Semantics not quite the same as above two.
-	// Everything's "allowed". Maybe swaps available is the
-	// better name here. Or swaps requested or something.
-	struct plist_head swaps_allowed_head;
 
 	/* effective CPUs and Memory Nodes allow to tasks */
 	cpumask_var_t effective_cpus;
 	nodemask_t effective_mems;
+
+#ifdef CONFIG_SWAP
+	// TODO: Give these a better name. The semantics are a bit different
+	// than above, because this isn't a mask. Maybe swaps requested?
+	struct plist_head swaps_allowed_head;
 	struct plist_head effective_swaps_head;
+#endif /* CONFIG_SWAP */
 
 	/*
 	 * CPUs allocated to child sub-partitions (default hierarchy only)
@@ -2205,6 +2207,8 @@ static void remove_all_swap(struct cpuset *cs)
 		spin_unlock(&top_cpuset.swap_lock);
 }
 
+#ifdef CONFIG_SWAP
+
 /*
  * current_cpuset_swap_list - return available swap_info_structs
  *
@@ -2309,6 +2313,7 @@ void cpuset_remove_from_swap_list(struct swap_info_struct *si)
 	rcu_read_unlock();
 	percpu_up_write(&cpuset_rwsem);
 }
+#endif /* CONFIG_SWAP */
 
 /**
  * update_tasks_flags - update the spread flags of tasks in the cpuset.
@@ -3305,6 +3310,7 @@ static struct cftype dfl_files[] = {
 		.flags = CFTYPE_DEBUG,
 	},
 
+#ifdef CONFIG_SWAP
 	{
 		.name = "swaps",
 		.seq_show = swaps_common_seq_show,
@@ -3333,6 +3339,7 @@ static struct cftype dfl_files[] = {
 		.private = FILE_SWAP_SUBTREE_LOCKED,
 		.flags = CFTYPE_NOT_ON_ROOT,
 	},
+#endif /* CONFIG_SWAP */
 
 	{ }	/* terminate */
 };
