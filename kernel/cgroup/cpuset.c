@@ -23,6 +23,7 @@
  */
 
 #include <linux/swap.h>
+#include <linux/swap_list.h>
 #include <linux/swapfile.h>
 #include <linux/cpu.h>
 #include <linux/cpumask.h>
@@ -290,74 +291,20 @@ static inline int is_swap_subtree_locked(const struct cpuset *cs)
 	return test_bit(CS_SWAP_SUBTREE_LOCKED, &cs->flags);
 }
 
-
-// Call with si->swap_lock held.
-static bool in_swap_list(const struct swap_info_struct *si,
-		const struct plist_head *list)
-{
-	struct swap_node *pos;
-	plist_for_each_entry(pos, list, plist) {
-		if (pos->si == si)
-			 return true;
-	}
-	return false;
-}
-
 // Call with si->swap_lock held
-static inline bool in_effective_swaps(const struct swap_info_struct *si,
-		const struct cpuset *cs)
+static inline bool in_effective_swaps(struct swap_info_struct *si,
+		struct cpuset *cs)
 {
 	return in_swap_list(si, &cs->effective_swaps_head);
 }
 
 // Call with si->swap_lock held
-static inline bool in_allowed_swaps(const struct swap_info_struct *si,
-		const struct cpuset *cs)
+static inline bool in_allowed_swaps(struct swap_info_struct *si,
+		struct cpuset *cs)
 {
 	return in_swap_list(si, &cs->swaps_allowed_head);
 }
 
-// Call with lists locked and an active reference to si.
-static int __add_to_swap_list(struct swap_info_struct *si,
-		struct plist_head *list)
-{
-	struct swap_node *node;
-
-	// TODO: We need more swap when memory is low. But low memory means
-	// that GFP_NOWAIT will fail.
-	// We need GFP_NOWAIT because this function is called under spinlock
-	// (we don't know how many cgroups need node addition until we've
-	// locked the cgroup tree). Think this through later, we need a better
-	// way.
-	if (!(node = kmalloc(sizeof(*node), GFP_NOWAIT)))
-		 return -ENOMEM;
-
-	node->si = si;
-	plist_node_init(&node->plist, si->prio);
-	plist_add(&node->plist, list);
-	return 0;
-}
-
-static int add_to_swap_list(struct swap_info_struct *si,
-		struct plist_head *list)
-{
-	if (in_swap_list(si, list))
-		 return 0;
-	return __add_to_swap_list(si, list);
-}
-
-static void remove_from_swap_list(struct swap_info_struct *si,
-		struct plist_head *list)
-{
-	struct swap_node *node;
-	plist_for_each_entry(node, list, plist) {
-		if (node->si == si) {
-			plist_del(&node->plist, list);
-			kfree(node);
-			return;
-		}
-	}
-}
 
 static void put_swap_list(struct plist_head *swap_list)
 {
@@ -2258,23 +2205,6 @@ static void remove_all_swap(struct cpuset *cs)
 		spin_unlock(&top_cpuset.swap_lock);
 }
 
-static void decrement_subsequent_swap_prio(const struct swap_info_struct *si,
-		const struct plist_head *list)
-{
-	struct swap_node *pos;
-	bool found = false;
-
-	plist_for_each_entry(pos, list, plist) {
-		if (pos->si == si) {
-			 found = true;
-			 continue;
-		}
-
-		if (found)
-			pos->plist.prio--;
-	}
-}
-
 /*
  * current_cpuset_swaplist - return available swap_info_structs
  *
@@ -2310,11 +2240,12 @@ void cpuset_put_current_swaplist()
 }
 
 /*
- * cpuset_swapon - expose a new swap_info_struct to the cpuset controller
+ * cpuset_add_to_swaplist - expose a new swap_info to the cpuset controller
  *
  * The caller must hold a reference to @si.
+ * TODO: Rename.
  */
-int cpuset_swapon(struct swap_info_struct *si)
+int cpuset_add_to_swaplist(struct swap_info_struct *si)
 {
 	int ret = 0;
 
@@ -2335,12 +2266,12 @@ out:
 }
 
 /*
- * cpuset_swapoff - remove a swap_info_struct from the cpuset controller
+ * cpuset_remove_from_swaplist - remove a swap_info from the cpuset controller
  *
  * The caller must hold a reference to @si to prevent @si from swapoff
  * during this operation.
  */
-void cpuset_swapoff(struct swap_info_struct *si)
+void cpuset_remove_from_swaplist(struct swap_info_struct *si)
 {
 	struct cpuset *cpuset;
 	struct cgroup_subsys_state *css_pos;

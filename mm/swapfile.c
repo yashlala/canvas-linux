@@ -15,6 +15,7 @@
 #include <linux/slab.h>
 #include <linux/kernel_stat.h>
 #include <linux/swap.h>
+#include <linux/swaplist.h>
 #include <linux/vmalloc.h>
 #include <linux/pagemap.h>
 #include <linux/namei.h>
@@ -1066,16 +1067,75 @@ noswap:
 	return n_ret;
 }
 
+#ifdef CONFIG_CPUSETS
+
+static void get_current_swaplist(struct plist_head **swap_list,
+ 				spinlock_t **swap_lock)
+{
+	cpuset_get_current_swaplist(swap_list, swap_lock);
+}
+
+static void put_current_swaplist(void)
+{
+	cpuset_put_current_swaplist();
+}
+
+static int add_to_current_swaplist(struct swap_info_struct *si)
+{
+	return cpuset_add_to_swaplist(si);
+}
+
+static void remove_from_current_swaplist(struct swap_info_struct *si)
+{
+	cpuset_remove_from_swaplist(si);
+}
+
+#else /* !CONFIG_CPUSETS */
+
+// TODO: Probably want to rename "swaplist" to "effective swaplist".
+// Too many swap lists around already.
+static PLIST_HEAD_INIT(swaplist_head);
+static DEFINE_SPINLOCK(swaplist_lock);
+
+static inline void get_current_swaplist(struct plist_head **swap_list,
+ 				spinlock_t **swap_lock)
+{
+	*swap_list = &swaplist_head;
+	*swap_lock = &swaplist_lock;
+}
+
+static void put_current_swaplist(void) {}
+
+// TODO: Consistency in which methods need locking
+// And in underscores and such for the names
+static int add_to_current_swaplist(struct swap_info_struct *si)
+{
+	int ret = 0;
+	spin_lock(&swaplist_lock);
+	ret = add_to_swap_list(si, &swaplist_head);
+	spin_unlock(&swaplist_lock);
+	return ret;
+}
+
+static void remove_from_current_swaplist(struct swap_info_struct *si)
+{
+	spin_lock(&swaplist_lock);
+	remove_from_swap_list(si, &swaplist_head);
+	spin_unlock(&swaplist_lock);
+}
+
+#endif
+
 int get_swap_pages(int n_goal, swp_entry_t swp_entries[], int entry_size)
 {
 		struct plist_head *swap_list;
 		spinlock_t *swap_lock;
 		int ret;
 
-		cpuset_get_current_swaplist(&swap_list, &swap_lock);
+		get_current_swaplist(&swap_list, &swap_lock);
 		ret = __get_swap_pages(swap_list, swap_lock,
 						n_goal, swp_entries, entry_size);
-		cpuset_put_current_swaplist();
+		put_current_swaplist();
 		return ret;
 }
 
@@ -2318,7 +2378,7 @@ static int _enable_swap_info(struct swap_info_struct *p)
 	spin_unlock(&p->lock);
 	spin_unlock(&swap_lock);
 
-	err = cpuset_swapon(p);
+	err = cpuset_add_to_swaplist(p);
 	if (err) {
 		spin_lock(&swap_lock);
 		spin_lock(&p->lock);
@@ -2432,7 +2492,7 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 	spin_unlock(&p->lock);
 	spin_unlock(&swap_lock);
 
-	cpuset_swapoff(p);
+	remove_from_swaplist(p);
 
 	disable_swap_slots_cache_lock();
 
@@ -3633,7 +3693,7 @@ void __cgroup_throttle_swaprate(struct page *page, gfp_t gfp_mask)
 	if (current->throttle_queue)
 		return;
 
-	cpuset_get_current_swaplist(&swap_list, &swap_lock);
+	get_current_swaplist(&swap_list, &swap_lock);
 	spin_lock(swap_lock);
 	plist_for_each_entry_safe(sn, next, swap_list, plist) {
 		if (sn->si->bdev) {
@@ -3642,6 +3702,6 @@ void __cgroup_throttle_swaprate(struct page *page, gfp_t gfp_mask)
 		}
 	}
 	spin_unlock(swap_lock);
-	cpuset_put_current_swaplist();
+	put_current_swaplist();
 }
 #endif
