@@ -18,11 +18,6 @@
 #include <linux/mmu_context.h>
 #include <linux/jump_label.h>
 
-struct swap_node {
-	struct swap_info_struct *si;
-	struct plist_node plist;
-};
-
 #ifdef CONFIG_CPUSETS
 
 /*
