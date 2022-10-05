@@ -293,6 +293,7 @@ static inline int is_swap_subtree_locked(const struct cpuset *cs)
 	return test_bit(CS_SWAP_SUBTREE_LOCKED, &cs->flags);
 }
 
+#ifdef CONFIG_SWAP
 // Call with si->swap_lock held
 static inline bool in_effective_swaps(struct swap_info_struct *si,
 		struct cpuset *cs)
@@ -332,6 +333,7 @@ err:
 	put_swap_list(dest);
 	return ret;
 }
+#endif /* CONFIG_SWAP */
 
 /*
  * Send notification event of whenever partition_root_state changes.
