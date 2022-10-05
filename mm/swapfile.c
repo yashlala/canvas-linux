@@ -1094,7 +1094,7 @@ static void remove_from_current_swap_list(struct swap_info_struct *si)
 
 // TODO: Probably want to rename "swap_list" to "effective swap_list".
 // Too many swap lists around already.
-static PLIST_HEAD_INIT(swap_list_head);
+static PLIST_HEAD(swap_list_head);
 static DEFINE_SPINLOCK(swap_list_lock);
 
 static inline void get_current_swap_list(struct plist_head **swap_list,
