@@ -3444,7 +3444,10 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 		 goto err;
 
 	spin_unlock_irq(&parent->swap_lock);
-#endif /* CONFIG_SWAP */
+
+#else /* !CONFIG_SWAP */
+	spin_unlock_irq(&callback_lock);
+#endif
 
 	if (!test_bit(CGRP_CPUSET_CLONE_CHILDREN, &css->cgroup->flags)) {
 		goto out_unlock;
