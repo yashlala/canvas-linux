@@ -3381,9 +3381,11 @@ cpuset_css_alloc(struct cgroup_subsys_state *parent_css)
 	fmeter_init(&cs->fmeter);
 	cs->relax_domain_level = -1;
 
+#ifdef CONFIG_SWAP
 	plist_head_init(&cs->swaps_allowed_head);
 	plist_head_init(&cs->effective_swaps_head);
 	spin_lock_init(&cs->swap_lock);
+#endif /* CONFIG_SWAP */
 
 	/* Set CS_MEMORY_MIGRATE for default hierarchy */
 	if (cgroup_subsys_on_dfl(cpuset_cgrp_subsys))
@@ -3425,6 +3427,7 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 		parent->child_ecpus_count++;
 	}
 
+#ifdef CONFIG_SWAP
 	if (parent == &top_cpuset)
 		 allowed_swaps = &parent->effective_swaps_head;
 	else
@@ -3441,6 +3444,7 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 		 goto err;
 
 	spin_unlock_irq(&parent->swap_lock);
+#endif /* CONFIG_SWAP */
 
 	if (!test_bit(CGRP_CPUSET_CLONE_CHILDREN, &css->cgroup->flags)) {
 		goto out_unlock;
@@ -3524,10 +3528,12 @@ static void cpuset_css_offline(struct cgroup_subsys_state *css)
 		parent->child_ecpus_count--;
 	}
 
+#ifdef CONFIG_SWAP
 	spin_lock_irq(&cs->swap_lock);
 	put_swap_list(&cs->effective_swaps_head);
 	put_swap_list(&cs->swaps_allowed_head);
 	spin_unlock_irq(&cs->swap_lock);
+#endif
 
 	cpuset_dec();
 	clear_bit(CS_ONLINE, &cs->flags);
