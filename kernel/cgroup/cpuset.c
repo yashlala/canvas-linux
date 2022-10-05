@@ -307,32 +307,6 @@ static inline bool in_allowed_swaps(struct swap_info_struct *si,
 {
 	return in_swap_list(si, &cs->swaps_allowed_head);
 }
-
-
-static void put_swap_list(struct plist_head *swap_list)
-{
-	struct swap_node *node, *tmp;
-	plist_for_each_entry_safe(node, tmp, swap_list, plist) {
-		plist_del(&node->plist, swap_list);
-		kfree(node);
-	}
-}
-
-static int copy_swap_list(struct plist_head *dest, struct plist_head *src)
-{
-	struct swap_node *node;
-	int ret;
-
-	plist_for_each_entry(node, src, plist) {
-		if ((ret = __add_to_swap_list(node->si, dest)))
-			 goto err;
-	}
-	return 0;
-
-err:
-	put_swap_list(dest);
-	return ret;
-}
 #endif /* CONFIG_SWAP */
 
 /*
@@ -2036,6 +2010,31 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
 
 #ifdef CONFIG_SWAP
 
+static void put_swap_list(struct plist_head *swap_list)
+{
+	struct swap_node *node, *tmp;
+	plist_for_each_entry_safe(node, tmp, swap_list, plist) {
+		plist_del(&node->plist, swap_list);
+		kfree(node);
+	}
+}
+
+static int copy_swap_list(struct plist_head *dest, struct plist_head *src)
+{
+	struct swap_node *node;
+	int ret;
+
+	plist_for_each_entry(node, src, plist) {
+		if ((ret = __add_to_swap_list(node->si, dest)))
+			 goto err;
+	}
+	return 0;
+
+err:
+	put_swap_list(dest);
+	return ret;
+}
+
 /*
  * add_swap_hier - Add a partition to swap lists in the subtree
  * @cs:  the parent cpuset to consider
@@ -2203,14 +2202,14 @@ static void remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 
 static void remove_all_swap(struct cpuset *cs)
 {
-		struct swap_node *pos;
-		spin_lock(&top_cpuset.swap_lock);
-		plist_for_each_entry(pos, &top_cpuset.effective_swaps_head, plist) {
-				spin_unlock(&top_cpuset.swap_lock);
-				remove_swap(cs, pos->si);
-				spin_lock(&top_cpuset.swap_lock);
-		}
+	struct swap_node *pos;
+	spin_lock(&top_cpuset.swap_lock);
+	plist_for_each_entry(pos, &top_cpuset.effective_swaps_head, plist) {
 		spin_unlock(&top_cpuset.swap_lock);
+		remove_swap(cs, pos->si);
+		spin_lock(&top_cpuset.swap_lock);
+	}
+	spin_unlock(&top_cpuset.swap_lock);
 }
 
 /*
@@ -2772,9 +2771,11 @@ static int cpuset_write_u64(struct cgroup_subsys_state *css, struct cftype *cft,
 	case FILE_SPREAD_SLAB:
 		retval = update_flag(CS_SPREAD_SLAB, cs, val);
 		break;
+#ifdef CONFIG_SWAP
 	case FILE_SWAP_SUBTREE_LOCKED:
 		retval = update_flag(CS_SWAP_SUBTREE_LOCKED, cs, val);
 		break;
+#endif /* CONFIG_SWAP */
 	default:
 		retval = -EINVAL;
 		break;
@@ -2879,6 +2880,7 @@ out_unlock:
 	return retval ?: nbytes;
 }
 
+#ifdef CONFIG_SWAP
 static void *swaps_common_seq_start(struct seq_file *seq, loff_t *spos)
 {
 	struct cpuset *cs = css_cs(seq_css(seq));
@@ -3018,6 +3020,7 @@ out_free:
 out:
 	return err ?: nbytes;
 }
+#endif /* CONFIG_SWAP */
 
 /*
  * These ascii lists should be read in a single call, by using a user
