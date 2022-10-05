@@ -349,8 +349,10 @@ static struct cpuset top_cpuset = {
 	.flags = ((1 << CS_ONLINE) | (1 << CS_CPU_EXCLUSIVE) |
 		  (1 << CS_MEM_EXCLUSIVE)),
 	.partition_root_state = PRS_ENABLED,
+#ifdef CONFIG_SWAP
 	.swaps_allowed_head = PLIST_HEAD_INIT(top_cpuset.swaps_allowed_head),
 	.effective_swaps_head = PLIST_HEAD_INIT(top_cpuset.effective_swaps_head),
+#endif /* CONFIG_SWAP */
 };
 
 /**
@@ -2032,6 +2034,8 @@ static int update_relax_domain_level(struct cpuset *cs, s64 val)
 	return 0;
 }
 
+#ifdef CONFIG_SWAP
+
 /*
  * add_swap_hier - Add a partition to swap lists in the subtree
  * @cs:  the parent cpuset to consider
@@ -2209,8 +2213,6 @@ static void remove_all_swap(struct cpuset *cs)
 		spin_unlock(&top_cpuset.swap_lock);
 }
 
-#ifdef CONFIG_SWAP
-
 /*
  * current_cpuset_swap_list - return available swap_info_structs
  *
@@ -2315,6 +2317,7 @@ void cpuset_remove_from_swap_list(struct swap_info_struct *si)
 	rcu_read_unlock();
 	percpu_up_write(&cpuset_rwsem);
 }
+
 #endif /* CONFIG_SWAP */
 
 /**
