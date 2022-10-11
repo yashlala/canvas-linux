@@ -3394,6 +3394,41 @@ cpuset_css_alloc(struct cgroup_subsys_state *parent_css)
 	return &cs->css;
 }
 
+#ifdef CONFIG_SWAP
+static int cpuset_css_online_swaps(struct cpuset *cs, struct cpuset *parent)
+{
+	struct plist_head *allowed_swaps;
+	int ret;
+
+	spin_lock_irq(&callback_lock);
+
+	if (parent == &top_cpuset)
+		 allowed_swaps = &parent->effective_swaps_head;
+	else
+		 allowed_swaps = &parent->swaps_allowed_head;
+
+	spin_unlock_irq(&callback_lock);
+
+	spin_lock_irq(&parent->swap_lock);
+
+	if ((ret = copy_swap_list(&cs->swaps_allowed_head, allowed_swaps)))
+		 goto err;
+	if ((ret = copy_swap_list(&cs->effective_swaps_head,
+			&parent->effective_swaps_head)))
+		 goto err;
+err:
+	spin_unlock_irq(&parent->swap_lock);
+	return ret;
+}
+
+#else /* CONFIG_SWAP */
+
+static int cpuset_css_online_swaps(struct cpuset *cs, struct cpuset *parent)
+{
+	return 0;
+}
+#endif
+
 // Create a new CPUset from an old one (new cgroup unlocked)!
 // cgroup_mutex must be held by caller.
 static int cpuset_css_online(struct cgroup_subsys_state *css)
@@ -3402,7 +3437,6 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 	struct cpuset *parent = parent_cs(cs);
 	struct cpuset *tmp_cs;
 	struct cgroup_subsys_state *pos_css;
-	struct plist_head *allowed_swaps;
 	int ret;
 
 	if (!parent)
@@ -3426,28 +3460,10 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 		cs->use_parent_ecpus = true;
 		parent->child_ecpus_count++;
 	}
-
-#ifdef CONFIG_SWAP
-	if (parent == &top_cpuset)
-		 allowed_swaps = &parent->effective_swaps_head;
-	else
-		 allowed_swaps = &parent->swaps_allowed_head;
-
 	spin_unlock_irq(&callback_lock);
 
-	spin_lock_irq(&parent->swap_lock);
-
-	if ((ret = copy_swap_list(&cs->swaps_allowed_head, allowed_swaps)))
+	if ((ret = cpuset_css_online_swaps(cs, parent)))
 		 goto err;
-	if ((ret = copy_swap_list(&cs->effective_swaps_head,
-			&parent->effective_swaps_head)))
-		 goto err;
-
-	spin_unlock_irq(&parent->swap_lock);
-
-#else /* !CONFIG_SWAP */
-	spin_unlock_irq(&callback_lock);
-#endif
 
 	if (!test_bit(CGRP_CPUSET_CLONE_CHILDREN, &css->cgroup->flags)) {
 		goto out_unlock;
