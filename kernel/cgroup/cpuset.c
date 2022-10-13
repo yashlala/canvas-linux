@@ -2035,6 +2035,78 @@ err:
 	return ret;
 }
 
+struct swap_node_list {
+	int len;
+	struct swap_node **nodes;
+};
+
+/*
+ * preallocate_swap_nodes - prepare to add a swap_node to a cgroup subtree
+ * @cpuset: the root of the cpuset cgroup subtree (skipped when allocating)
+ * @si:     the swap partition that will be added to the subtree
+ * @ret:    treated as a return value, set to a list of
+ *
+ * The caller must free @ret.
+ */
+static int preallocate_swap_nodes(struct cpuset *cpuset,
+		struct swap_info_struct *si, struct swap_node_list *ret)
+{
+	struct cpuset *descendant;
+	struct cgroup_subsys_state *pos;
+	unsigned long flags;
+	int i;
+
+	ret->len = 0;
+
+	rcu_read_lock();
+	cpuset_for_each_descendant_pre(descendant, pos, cpuset) {
+		if (descendant == cpuset)
+			 continue;
+
+		/* Don't add swap partitions to locked subtrees. */
+		if (is_swap_subtree_locked(descendant)) {
+			pos = css_rightmost_descendant(pos);
+			continue;
+		}
+
+		spin_lock_irqsave(&descendant->swap_lock, flags);
+		if (in_swap_list(si, &descendant->swaps_allowed_head))
+			 ret->len++;
+		spin_unlock_irqrestore(&descendant->swap_lock, flags);
+
+		/*
+		 * This function is called only if @si is not in @cpuset's
+		 * allowed swaps list. This implies that no child has @si in
+		 * its effective_swaps_head yet, so we unconditionally allocate
+		 * it here.
+		 */
+		ret->len++;
+
+	}
+	rcu_read_unlock();
+
+	ret->nodes = kmalloc_array(ret->len, sizeof(struct swap_node*),
+			GFP_KERNEL);
+	if (!ret->nodes)
+		 return -ENOMEM;
+
+	for (i = 0; i < ret->len; i++) {
+		ret->nodes[i] = kmalloc(sizeof(struct swap_node), GFP_KERNEL);
+		if (!ret->nodes[i]) {
+			ret->len = i;
+			goto err;
+		}
+	}
+
+	return 0;
+err:
+	for (i = 0; i < ret->len; i++) {
+		kfree(ret->nodes[i]);
+	}
+	kfree(ret);
+	return -ENOMEM;
+}
+
 /*
  * add_swap_hier - Add a partition to swap lists in the subtree
  * @cs:  the parent cpuset to consider
@@ -2044,18 +2116,24 @@ err:
  * lists of a cpuset's descendants need to be updated. This function doesn't
  * touch the root cpuset.
  *
- * The caller must hold a reference to @si.
+ * The caller must hold cpuset_rwsem and a reference to @si. This function can
+ * sleep.
  */
 static int add_swap_hier(struct cpuset *cpuset, struct swap_info_struct *si)
 {
 	struct cpuset *descendant;
 	struct cgroup_subsys_state *pos;
+	struct swap_node_list swap_nodes;
 	unsigned long flags;
-	int ret;
+	int i = 0;
+	int ret = 0;
+
+	if ((ret = preallocate_swap_nodes(cpuset, si, &swap_nodes)))
+		 return ret;
 
 	rcu_read_lock();
 
-	/* propagate new swap partitions to descendants */
+	/* propagate new swap partition to descendants */
 	cpuset_for_each_descendant_pre(descendant, pos, cpuset) {
 		if (descendant == cpuset)
 			 continue;
@@ -2068,21 +2146,26 @@ static int add_swap_hier(struct cpuset *cpuset, struct swap_info_struct *si)
 
 		spin_lock_irqsave(&descendant->swap_lock, flags);
 
-		if ((ret = __add_to_swap_list(si, &descendant->swaps_allowed_head)))
-			 goto err;
-		if ((ret = __add_to_swap_list(si, &descendant->effective_swaps_head)))
-			 goto err;
+		/*
+		 * This function is called only if @si is not in @cpuset's
+		 * effective swap list. Skip that check.
+		 */
+		add_to_swap_list(si, &descendant->effective_swaps_head,
+				swap_nodes.nodes[i++]);
+
+		if (in_swap_list(si, &descendant->swaps_allowed_head))
+			 add_to_swap_list(si, &descendant->swaps_allowed_head,
+					 swap_nodes.nodes[i++]);
 
 		spin_unlock_irqrestore(&descendant->swap_lock, flags);
 	}
 
+	// TODO: Add an oops here if i != swap_nodes.len
+
 	rcu_read_unlock();
 
+	kfree(swap_nodes.nodes);
 	return 0;
-err:
-	spin_unlock_irqrestore(&descendant->swap_lock, flags);
-	rcu_read_unlock();
-	return ret;
 }
 
 
@@ -2094,7 +2177,7 @@ err:
  * When configured swap list is changed, the effective swap lists of this
  * cpuset and all its descendants need to be updated.
  *
- * Call with cpuset_rwsem and held.
+ * Call with cpuset_rwsem held.
  */
 static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
@@ -2110,6 +2193,7 @@ static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 		return 0;
 	}
 
+	// TODO: Add preallocation here!
 	if (parent) {
 		 if ((ret = add_to_swap_list(si, &cpuset->swaps_allowed_head)))
 			  goto err;
@@ -2257,6 +2341,8 @@ int cpuset_add_to_swap_list(struct swap_info_struct *si)
 	int ret = 0;
 
 	percpu_down_write(&cpuset_rwsem);
+
+	// Count here! Allocate here!
 
 	spin_lock(&top_cpuset.swap_lock);
 	if ((ret = add_to_swap_list(si, &top_cpuset.effective_swaps_head))) {
