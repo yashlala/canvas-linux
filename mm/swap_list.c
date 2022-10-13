@@ -24,31 +24,18 @@ bool in_swap_list(struct swap_info_struct *si, struct plist_head *list)
 	return false;
 }
 
-int __add_to_swap_list(struct swap_info_struct *si,
-		struct plist_head *list)
+/*
+ * add_to_swap_list - Add an entry to a swap list in the subtree
+ * @si:    the swap partition to add
+ * @list:  the swap list to consider
+ * @node:  a preallocated swap_node
+ */
+void add_to_swap_list(struct swap_info_struct *si, struct plist_head *list,
+		struct swap_node *node)
 {
-	struct swap_node *node;
-
-	// TODO: We need more swap when memory is low. But low memory means
-	// that GFP_NOWAIT will fail.
-	// We need GFP_NOWAIT because this function is called under spinlock
-	// (we don't know how many cgroups need node addition until we've
-	// locked the cgroup tree). Think this through later, we need a better
-	// way.
-	if (!(node = kmalloc(sizeof(*node), GFP_NOWAIT)))
-		 return -ENOMEM;
-
 	node->si = si;
 	plist_node_init(&node->plist, si->prio);
 	plist_add(&node->plist, list);
-	return 0;
-}
-
-int add_to_swap_list(struct swap_info_struct *si, struct plist_head *list)
-{
-	if (in_swap_list(si, list))
-		 return 0;
-	return __add_to_swap_list(si, list);
 }
 
 void remove_from_swap_list(struct swap_info_struct *si,

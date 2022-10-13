@@ -11,8 +11,8 @@ struct swap_node {
 };
 
 bool in_swap_list(struct swap_info_struct *si, struct plist_head *list);
-int add_to_swap_list(struct swap_info_struct *si, struct plist_head *list);
-int __add_to_swap_list(struct swap_info_struct *si, struct plist_head *list);
+void add_to_swap_list(struct swap_info_struct *si, struct plist_head *list,
+		struct swap_node *node);
 void remove_from_swap_list(struct swap_info_struct *si,
 		struct plist_head *list);
 void decrement_subsequent_swap_prio(struct swap_info_struct *si,
