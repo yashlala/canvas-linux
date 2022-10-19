@@ -2019,20 +2019,39 @@ static void put_swap_list(struct plist_head *swap_list)
 	}
 }
 
-static int copy_swap_list(struct plist_head *dest, struct plist_head *src)
+/* This function may sleep. */
+static int copy_swap_list(struct plist_head *dest, struct plist_head *src,
+		spinlock_t *src_lock)
 {
-	struct swap_node *node;
-	int ret;
+	struct swap_node *pos, *tmp;
+	struct swap_node *new;
+	unsigned long flags;
 
-	plist_for_each_entry(node, src, plist) {
-		if ((ret = __add_to_swap_list(node->si, dest)))
+	spin_lock_irqsave(src_lock, flags); // TODO: We don't need irqsave here
+					    // do we?
+	plist_for_each_entry(pos, src, plist) {
+		spin_unlock_irqrestore(src_lock, flags);
+
+		new = kmalloc(sizeof(*new), GFP_KERNEL);
+		if (!new)
 			 goto err;
+
+		spin_lock_irqsave(src_lock, flags);
+		add_to_swap_list(pos->si, dest, new);
 	}
+	spin_unlock_irqrestore(src_lock, flags);
+
 	return 0;
 
 err:
-	put_swap_list(dest);
-	return ret;
+	spin_lock_irqsave(src_lock, flags);
+	plist_for_each_entry_safe(pos, tmp, dest, plist) {
+		plist_del(&pos->plist, dest);
+		kfree(pos);
+	}
+	spin_unlock_irqrestore(src_lock, flags);
+
+	return -ENOMEM;
 }
 
 struct swap_node_list {
@@ -2190,7 +2209,11 @@ static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 						      // here? We never fault
 						      // in an interrupt
 						      // handler, right? TODO
-						      // check this.
+						      // check this. Oh dang
+						      // wait I think
+						      // callback_lock may be
+						      // taken in interrupt
+						      // handlers. Check that.
 
 	if (in_allowed_swaps(si, cpuset)) {
 		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
@@ -3500,11 +3523,10 @@ cpuset_css_alloc(struct cgroup_subsys_state *parent_css)
 }
 
 #ifdef CONFIG_SWAP
-// TODO: Rename this to something sensical.
-static int cpuset_css_online_swaps(struct cpuset *cs, struct cpuset *parent)
+static int copy_parent_swap_lists(struct cpuset *cs, struct cpuset *parent)
 {
 	struct plist_head *allowed_swaps;
-	int ret;
+	int ret = 0;
 
 	spin_lock_irq(&callback_lock); // TODO: Understand irqsave
 
@@ -3515,21 +3537,20 @@ static int cpuset_css_online_swaps(struct cpuset *cs, struct cpuset *parent)
 
 	spin_unlock_irq(&callback_lock);
 
-	spin_lock_irq(&parent->swap_lock);
-
-	if ((ret = copy_swap_list(&cs->swaps_allowed_head, allowed_swaps)))
-		 goto err;
+	if ((ret = copy_swap_list(&cs->swaps_allowed_head,
+					allowed_swaps, &parent->swap_lock)))
+		 goto out;
 	if ((ret = copy_swap_list(&cs->effective_swaps_head,
-			&parent->effective_swaps_head)))
-		 goto err;
-err:
-	spin_unlock_irq(&parent->swap_lock);
+					&parent->effective_swaps_head,
+					&parent->swap_lock)))
+		 goto out;
+out:
 	return ret;
 }
 
 #else /* CONFIG_SWAP */
 
-static int cpuset_css_online_swaps(struct cpuset *cs, struct cpuset *parent)
+static int copy_parent_swap_lists(struct cpuset *cs, struct cpuset *parent)
 {
 	return 0;
 }
@@ -3568,7 +3589,7 @@ static int cpuset_css_online(struct cgroup_subsys_state *css)
 	}
 	spin_unlock_irq(&callback_lock);
 
-	if ((ret = cpuset_css_online_swaps(cs, parent)))
+	if ((ret = copy_parent_swap_lists(cs, parent)))
 		 goto err;
 
 	if (!test_bit(CGRP_CPUSET_CLONE_CHILDREN, &css->cgroup->flags)) {
