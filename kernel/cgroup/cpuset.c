@@ -2108,7 +2108,7 @@ err:
 }
 
 /*
- * add_swap_hier - Add a partition to swap lists in the subtree
+ * __add_swap_hier - Add a swap partition to descendants of a cpuset
  * @cs:  the parent cpuset to consider
  * @si:  the swap partition to add/remove
  *
@@ -2119,7 +2119,7 @@ err:
  * The caller must hold cpuset_rwsem and a reference to @si. This function can
  * sleep.
  */
-static int add_swap_hier(struct cpuset *cpuset, struct swap_info_struct *si)
+static int __add_swap_hier(struct cpuset *cpuset, struct swap_info_struct *si)
 {
 	struct cpuset *descendant;
 	struct cgroup_subsys_state *pos;
@@ -2177,40 +2177,59 @@ static int add_swap_hier(struct cpuset *cpuset, struct swap_info_struct *si)
  * When configured swap list is changed, the effective swap lists of this
  * cpuset and all its descendants need to be updated.
  *
- * Call with cpuset_rwsem held.
+ * Call with cpuset_rwsem held. This function may sleep.
  */
 static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
 	unsigned long flags;
 	struct cpuset *parent = parent_cs(cpuset);
-	int ret = 0;
+	struct swap_node *new;
 
 	/* update the node's information */
-	spin_lock_irqsave(&cpuset->swap_lock, flags);
+	spin_lock_irqsave(&cpuset->swap_lock, flags); // TODO: Why irqrestore
+						      // here? We never fault
+						      // in an interrupt
+						      // handler, right? TODO
+						      // check this.
 
 	if (in_allowed_swaps(si, cpuset)) {
 		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 		return 0;
 	}
 
-	// TODO: Add preallocation here!
+	/* The root cpuset doesn't use swaps_allowed_head at all. */
 	if (parent) {
-		 if ((ret = add_to_swap_list(si, &cpuset->swaps_allowed_head)))
-			  goto err;
+		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
+		new = kmalloc(sizeof(*new), GFP_KERNEL);
+		if (!new)
+			 return -ENOMEM;
+		spin_lock_irqsave(&cpuset->swap_lock, flags);
+
+		add_to_swap_list(si, &cpuset->swaps_allowed_head, new);
 	}
+
+	/*
+	 * The root cpuset uses effective_swaps_head as a list of all swappable
+	 * partitions in the system.
+	 *
+	 * TODO: Should the above comment really be true? Do we still need
+	 * a global swap_avail_list, or is it redundant with swap_active_head
+	 * now?
+	 */
 	if (!parent || in_effective_swaps(si, parent)) {
-		 if ((ret = add_to_swap_list(si, &cpuset->effective_swaps_head)))
-			  goto err;
+		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
+		new = kmalloc(sizeof(*new), GFP_KERNEL);
+		if (!new) {
+			remove_from_swap_list(si, &cpuset->swaps_allowed_head);
+			return -ENOMEM;
+		}
+		spin_lock_irqsave(&cpuset->swap_lock, flags);
+		add_to_swap_list(si, &cpuset->effective_swaps_head, new);
 	}
 
 	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 
-	ret = add_swap_hier(cpuset, si);
-
-	return ret;
-err:
-	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
-	return ret;
+	return __add_swap_hier(cpuset, si);
 }
 
 static int add_all_swap(struct cpuset *cs)
@@ -3481,12 +3500,13 @@ cpuset_css_alloc(struct cgroup_subsys_state *parent_css)
 }
 
 #ifdef CONFIG_SWAP
+// TODO: Rename this to something sensical.
 static int cpuset_css_online_swaps(struct cpuset *cs, struct cpuset *parent)
 {
 	struct plist_head *allowed_swaps;
 	int ret;
 
-	spin_lock_irq(&callback_lock);
+	spin_lock_irq(&callback_lock); // TODO: Understand irqsave
 
 	if (parent == &top_cpuset)
 		 allowed_swaps = &parent->effective_swaps_head;
