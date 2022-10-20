@@ -178,8 +178,8 @@ static inline void set_mems_allowed(nodemask_t nodemask)
 	task_unlock(current);
 }
 
-int cpuset_add_to_swap_list(struct swap_info_struct *si);
-void cpuset_remove_from_swap_list(struct swap_info_struct *si);
+int cpuset_enable_swap_info(struct swap_info_struct *si);
+void cpuset_disable_swap_info(struct swap_info_struct *si);
 void cpuset_get_current_swap_list(struct plist_head **swap_list,
 				spinlock_t **swap_lock);
 void cpuset_put_current_swap_list(void);

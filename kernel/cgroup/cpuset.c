@@ -2060,12 +2060,14 @@ struct swap_node_list {
 };
 
 /*
- * preallocate_swap_nodes - prepare to add a swap_node to a cgroup subtree
+ * preallocate_swap_nodes - allocate swap_node s to add to a subtree
+ *
+ * This function does not allocate a swap node for root of the cpuset subtree.
+ * The caller must free @ret.
+ *
  * @cpuset: the root of the cpuset cgroup subtree (skipped when allocating)
  * @si:     the swap partition that will be added to the subtree
  * @ret:    treated as a return value, set to a list of
- *
- * The caller must free @ret.
  */
 static int preallocate_swap_nodes(struct cpuset *cpuset,
 		struct swap_info_struct *si, struct swap_node_list *ret)
@@ -2133,7 +2135,7 @@ err:
  *
  * When new swap devices are made available, the available and effective swap
  * lists of a cpuset's descendants need to be updated. This function doesn't
- * touch the root cpuset.
+ * touch @cs, only its descendants.
  *
  * The caller must hold cpuset_rwsem and a reference to @si. This function can
  * sleep.
@@ -2373,40 +2375,44 @@ void cpuset_put_current_swap_list()
 }
 
 /*
- * cpuset_add_to_swap_list - expose a new swap_info to the cpuset controller
+ * cpuset_enable_swap_info - expose a new swap_info to the cpuset controller
  *
- * The caller must hold a reference to @si.
- * TODO: Rename.
+ * (TODO: Why caller has to hold reference to si?).
+ * The caller must hold a reference to @si. This function may sleep.
  */
-int cpuset_add_to_swap_list(struct swap_info_struct *si)
+int cpuset_enable_swap_info(struct swap_info_struct *si)
 {
+	struct swap_node *new;
 	int ret = 0;
 
 	percpu_down_write(&cpuset_rwsem);
 
-	// Count here! Allocate here!
-
-	spin_lock(&top_cpuset.swap_lock);
-	if ((ret = add_to_swap_list(si, &top_cpuset.effective_swaps_head))) {
-		spin_unlock(&top_cpuset.swap_lock);
+	new = kmalloc(sizeof(*new), GFP_KERNEL);
+	if (!new) {
+		ret = -ENOMEM;
 		goto out;
 	}
+	spin_lock(&top_cpuset.swap_lock);
+	add_to_swap_list(si, &top_cpuset.effective_swaps_head, new);
 	spin_unlock(&top_cpuset.swap_lock);
 
-	ret = add_swap_hier(&top_cpuset, si);
-
+	ret = __add_swap_hier(&top_cpuset, si);
+	if (!ret) {
+		remove_from_swap_list(si, &top_cpuset.effective_swaps_head);
+		goto out;
+	}
 out:
 	percpu_up_write(&cpuset_rwsem);
 	return ret;
 }
 
 /*
- * cpuset_remove_from_swap_list - remove a swap_info from the cpuset controller
+ * cpuset_disable_swap_info - remove a swap_info from the cpuset controller
  *
  * The caller must hold a reference to @si to prevent @si from swapoff
  * during this operation.
  */
-void cpuset_remove_from_swap_list(struct swap_info_struct *si)
+void cpuset_disable_swap_info(struct swap_info_struct *si)
 {
 	struct cpuset *cpuset;
 	struct cgroup_subsys_state *css_pos;
