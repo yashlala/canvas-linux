@@ -1082,12 +1082,12 @@ static void put_current_swap_list(void)
 
 static int add_to_current_swap_list(struct swap_info_struct *si)
 {
-	return cpuset_add_to_swap_list(si);
+	return cpuset_enable_swap_info(si);
 }
 
 static void remove_from_current_swap_list(struct swap_info_struct *si)
 {
-	cpuset_remove_from_swap_list(si);
+	cpuset_disable_swap_info(si);
 }
 
 #else /* !CONFIG_CPUSETS */
