@@ -2342,12 +2342,19 @@ static void remove_all_swap(struct cpuset *cs)
 }
 
 /*
- * current_cpuset_swap_list - return available swap_info_structs
+ * cpuset_get_current_swap_list - return available swap_info_structs
  *
- * Returns a TODO.
+ * Retrieve the list of allowed swap devices for the current process.
+ * The caller should free this list via cpuset_put_current_swap_list().
  *
- * The spinlock provided is only for swap list _access_.
- * Do not modify the returned TODO
+ * @swap_list: Used as a return value. Will point to the current task's list of
+ *             available swap partitions, expressed as a struct swap_node
+ *             plist. This list is read only.
+ * @swap_lock: Used as a return value. Will point to the lock used to access
+ *             @swap_list. This lock provides read only access -- do not write
+ *             to @swap_list!
+ *
+ * Context: This function must be taken from process context.
  */
 void cpuset_get_current_swap_list(struct plist_head **swap_list,
 				spinlock_t **swap_lock)
