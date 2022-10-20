@@ -2181,7 +2181,8 @@ static int __add_swap_hier(struct cpuset *cpuset, struct swap_info_struct *si)
 		spin_unlock_irqrestore(&descendant->swap_lock, flags);
 	}
 
-	// TODO: Add an oops here if i != swap_nodes.len
+	// TODO: This is for debugging. Remove this later.
+	BUG_ON(i != swap_nodes.len);
 
 	rcu_read_unlock();
 
