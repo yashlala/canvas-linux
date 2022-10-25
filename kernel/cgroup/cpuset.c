@@ -2405,7 +2405,7 @@ int cpuset_enable_swap_info(struct swap_info_struct *si)
 	spin_unlock(&top_cpuset.swap_lock);
 
 	ret = __add_swap_hier(&top_cpuset, si);
-	if (!ret) {
+	if (ret) {
 		remove_from_swap_list(si, &top_cpuset.effective_swaps_head);
 		goto out;
 	}
