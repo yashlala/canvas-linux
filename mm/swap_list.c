@@ -28,14 +28,14 @@ bool in_swap_list(struct swap_info_struct *si, struct plist_head *list)
  * add_to_swap_list - Add an entry to a swap list in the subtree
  * @si:    the swap partition to add
  * @list:  the swap list to consider
- * @node:  a preallocated swap_node
+ * @new:  a preallocated swap_node
  */
 void add_to_swap_list(struct swap_info_struct *si, struct plist_head *list,
-		struct swap_node *node)
+		struct swap_node *new)
 {
-	node->si = si;
-	plist_node_init(&node->plist, si->prio);
-	plist_add(&node->plist, list);
+	new->si = si;
+	plist_node_init(&new->plist, si->prio);
+	plist_add(&new->plist, list);
 }
 
 void remove_from_swap_list(struct swap_info_struct *si,
