@@ -2409,6 +2409,7 @@ static int enable_swap_info(struct swap_info_struct *p, int prio,
 static void reinsert_swap_info(struct swap_info_struct *p)
 {
 	setup_swap_info(p, p->prio, p->swap_map, p->cluster_info);
+	// TODO: What if this fails?
 	_enable_swap_info(p);
 }
 
@@ -2504,7 +2505,8 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 
 	if (err) {
 		/* re-insert swap space back into swap_list */
-		reinsert_swap_info(p);
+		reinsert_swap_info(p); // TODO: What do we do if this fails?
+				       // Are we prepared for this eventuality?
 		reenable_swap_slots_cache_unlock();
 		goto out_dput;
 	}
