@@ -2395,8 +2395,6 @@ static int enable_swap_info(struct swap_info_struct *p, int prio,
 				struct swap_cluster_info *cluster_info,
 				unsigned long *frontswap_map)
 {
-	int error = 0;
-
 	if (IS_ENABLED(CONFIG_FRONTSWAP))
 		frontswap_init(p->type, frontswap_map);
 	setup_swap_info(p, prio, swap_map, cluster_info);
@@ -2405,8 +2403,7 @@ static int enable_swap_info(struct swap_info_struct *p, int prio,
 	 * Finished initializing swap device, now it's safe to reference it.
 	 */
 	percpu_ref_resurrect(&p->users);
-	error = _enable_swap_info(p);
-	return error;
+	return _enable_swap_info(p);
 }
 
 static void reinsert_swap_info(struct swap_info_struct *p)
