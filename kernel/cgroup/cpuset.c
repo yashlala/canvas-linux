@@ -2130,17 +2130,18 @@ err:
 
 /*
  * __add_swap_hier - Add a swap partition to descendants of a cpuset
- * @cs:  the parent cpuset to consider
- * @si:  the swap partition to add/remove
+ * @subtree_root:  the root of the cpuset subtree to consider
+ * @si:            the swap partition to add/remove
  *
  * When new swap devices are made available, the available and effective swap
  * lists of a cpuset's descendants need to be updated. This function doesn't
- * touch @cs, only its descendants.
+ * touch @subtree_root, only its descendants.
  *
  * The caller must hold cpuset_rwsem and a reference to @si. This function can
  * sleep.
  */
-static int __add_swap_hier(struct cpuset *cpuset, struct swap_info_struct *si)
+static int __add_swap_hier(struct cpuset *subtree_root,
+		struct swap_info_struct *si)
 {
 	struct cpuset *descendant;
 	struct cgroup_subsys_state *pos;
@@ -2149,14 +2150,14 @@ static int __add_swap_hier(struct cpuset *cpuset, struct swap_info_struct *si)
 	int i = 0;
 	int ret = 0;
 
-	if ((ret = preallocate_swap_nodes(cpuset, si, &swap_nodes)))
+	if ((ret = preallocate_swap_nodes(subtree_root, si, &swap_nodes)))
 		 return ret;
 
 	rcu_read_lock();
 
 	/* propagate new swap partition to descendants */
-	cpuset_for_each_descendant_pre(descendant, pos, cpuset) {
-		if (descendant == cpuset)
+	cpuset_for_each_descendant_pre(descendant, pos, subtree_root) {
+		if (descendant == subtree_root)
 			 continue;
 
 		/* Don't add swap partitions to locked subtrees. */
@@ -2168,13 +2169,15 @@ static int __add_swap_hier(struct cpuset *cpuset, struct swap_info_struct *si)
 		spin_lock_irqsave(&descendant->swap_lock, flags);
 
 		/*
-		 * This function is called only if @si is not in @cpuset's
-		 * effective swap list. Skip that check.
+		 * The enclosing function is called only if @si is not in
+		 * @cpuset's effective swap list. Skip that check.
 		 */
 		add_to_swap_list(si, &descendant->effective_swaps_head,
 				swap_nodes.nodes[i++]);
 
-		if (in_swap_list(si, &descendant->swaps_allowed_head))
+		// Aha. This fails for root. Check if parent is root.
+		if (parent_cs(descendant) == &top_cpuset
+				|| in_swap_list(si, &descendant->swaps_allowed_head))
 			 add_to_swap_list(si, &descendant->swaps_allowed_head,
 					 swap_nodes.nodes[i++]);
 
