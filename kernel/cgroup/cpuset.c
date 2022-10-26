@@ -124,9 +124,7 @@ struct cpuset {
 	nodemask_t effective_mems;
 
 #ifdef CONFIG_SWAP
-	// TODO: Give these a better name. The semantics are a bit different
-	// than above, because this isn't a mask. Maybe swaps requested?
-	struct plist_head swaps_allowed_head;
+	struct plist_head swaps_requested_head;
 	struct plist_head effective_swaps_head;
 #endif /* CONFIG_SWAP */
 
@@ -302,10 +300,10 @@ static inline bool in_effective_swaps(struct swap_info_struct *si,
 }
 
 // Call with si->swap_lock held
-static inline bool in_allowed_swaps(struct swap_info_struct *si,
+static inline bool in_requested_swaps(struct swap_info_struct *si,
 		struct cpuset *cs)
 {
-	return in_swap_list(si, &cs->swaps_allowed_head);
+	return in_swap_list(si, &cs->swaps_requested_head);
 }
 #endif /* CONFIG_SWAP */
 
@@ -324,7 +322,7 @@ static struct cpuset top_cpuset = {
 		  (1 << CS_MEM_EXCLUSIVE)),
 	.partition_root_state = PRS_ENABLED,
 #ifdef CONFIG_SWAP
-	.swaps_allowed_head = PLIST_HEAD_INIT(top_cpuset.swaps_allowed_head),
+	.swaps_requested_head = PLIST_HEAD_INIT(top_cpuset.swaps_requested_head),
 	.effective_swaps_head = PLIST_HEAD_INIT(top_cpuset.effective_swaps_head),
 #endif /* CONFIG_SWAP */
 };
@@ -2091,13 +2089,13 @@ static int preallocate_swap_nodes(struct cpuset *cpuset,
 		}
 
 		spin_lock_irqsave(&descendant->swap_lock, flags);
-		if (in_swap_list(si, &descendant->swaps_allowed_head))
+		if (in_swap_list(si, &descendant->swaps_requested_head))
 			 ret->len++;
 		spin_unlock_irqrestore(&descendant->swap_lock, flags);
 
 		/*
 		 * This function is called only if @si is not in @cpuset's
-		 * allowed swaps list. This implies that no child has @si in
+		 * requested swaps list. This implies that no child has @si in
 		 * its effective_swaps_head yet, so we unconditionally allocate
 		 * it here.
 		 */
@@ -2177,8 +2175,8 @@ static int __add_swap_hier(struct cpuset *subtree_root,
 
 		// Aha. This fails for root. Check if parent is root.
 		if (parent_cs(descendant) == &top_cpuset
-				|| in_swap_list(si, &descendant->swaps_allowed_head))
-			 add_to_swap_list(si, &descendant->swaps_allowed_head,
+				|| in_swap_list(si, &descendant->swaps_requested_head))
+			 add_to_swap_list(si, &descendant->swaps_requested_head,
 					 swap_nodes.nodes[i++]);
 
 		spin_unlock_irqrestore(&descendant->swap_lock, flags);
@@ -2221,12 +2219,12 @@ static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 						      // taken in interrupt
 						      // handlers. Check that.
 
-	if (in_allowed_swaps(si, cpuset)) {
+	if (in_requested_swaps(si, cpuset)) {
 		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 		return 0;
 	}
 
-	/* The root cpuset doesn't use swaps_allowed_head at all. */
+	/* The root cpuset doesn't use swaps_requested_head at all. */
 	if (parent) {
 		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 		new = kmalloc(sizeof(*new), GFP_KERNEL);
@@ -2234,7 +2232,7 @@ static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 			 return -ENOMEM;
 		spin_lock_irqsave(&cpuset->swap_lock, flags);
 
-		add_to_swap_list(si, &cpuset->swaps_allowed_head, new);
+		add_to_swap_list(si, &cpuset->swaps_requested_head, new);
 	}
 
 	/*
@@ -2249,7 +2247,7 @@ static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 		new = kmalloc(sizeof(*new), GFP_KERNEL);
 		if (!new) {
-			remove_from_swap_list(si, &cpuset->swaps_allowed_head);
+			remove_from_swap_list(si, &cpuset->swaps_requested_head);
 			return -ENOMEM;
 		}
 		spin_lock_irqsave(&cpuset->swap_lock, flags);
@@ -2283,8 +2281,8 @@ static int add_all_swap(struct cpuset *cs)
  * @cs:  the cpuset to consider
  * @si:  the swap partition to remove
  *
- * When the swaps_allowed_head of a cpuset is changed, the effective swap lists
- * of this cpuset and all its descendants need to be updated.
+ * When the swaps_requested_head of a cpuset is changed, the effective swap
+ * lists of this cpuset and all its descendants need to be updated.
  *
  * Context: Call with cpuset_rwsem and callback_lock held.
  */
@@ -2296,12 +2294,12 @@ static void remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 
 	spin_lock_irqsave(&cpuset->swap_lock, flags);
 
-	if (!in_allowed_swaps(si, cpuset)) {
+	if (!in_requested_swaps(si, cpuset)) {
 		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 		return;
 	}
 
-	remove_from_swap_list(si, &cpuset->swaps_allowed_head);
+	remove_from_swap_list(si, &cpuset->swaps_requested_head);
 	remove_from_swap_list(si, &cpuset->effective_swaps_head);
 
 	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
@@ -2347,7 +2345,7 @@ static void remove_all_swap(struct cpuset *cs)
 /*
  * cpuset_get_current_swap_list - return available swap_info_structs
  *
- * Retrieve the list of allowed swap devices for the current process.
+ * Retrieve the list of effective swap devices for the current process.
  * The caller should free this list via cpuset_put_current_swap_list().
  *
  * @swap_list: Used as a return value. Will point to the current task's list of
@@ -2449,10 +2447,10 @@ void cpuset_disable_swap_info(struct swap_info_struct *si)
 			decrement_subsequent_swap_prio(si,
 					&cpuset->effective_swaps_head);
 			decrement_subsequent_swap_prio(si,
-					&cpuset->swaps_allowed_head);
+					&cpuset->swaps_requested_head);
 		}
 		remove_from_swap_list(si, &cpuset->effective_swaps_head);
-		remove_from_swap_list(si, &cpuset->swaps_allowed_head);
+		remove_from_swap_list(si, &cpuset->swaps_requested_head);
 
 		spin_unlock(&cpuset->swap_lock);
 	}
@@ -3035,7 +3033,7 @@ static void *swaps_common_seq_start(struct seq_file *seq, loff_t *spos)
 
 	switch (type) {
 	case FILE_SWAPLIST:
-		swap_list = &cs->swaps_allowed_head;
+		swap_list = &cs->swaps_requested_head;
 		break;
 	case FILE_EFFECTIVE_SWAPLIST:
 		swap_list = &cs->effective_swaps_head;
@@ -3067,7 +3065,7 @@ static void *swaps_common_seq_next(struct seq_file *seq, void *v, loff_t *ppos)
 
 	switch (type) {
 	case FILE_SWAPLIST:
-		swap_list = &cs->swaps_allowed_head;
+		swap_list = &cs->swaps_requested_head;
 		break;
 	case FILE_EFFECTIVE_SWAPLIST:
 		swap_list = &cs->effective_swaps_head;
@@ -3526,7 +3524,7 @@ cpuset_css_alloc(struct cgroup_subsys_state *parent_css)
 	cs->relax_domain_level = -1;
 
 #ifdef CONFIG_SWAP
-	plist_head_init(&cs->swaps_allowed_head);
+	plist_head_init(&cs->swaps_requested_head);
 	plist_head_init(&cs->effective_swaps_head);
 	spin_lock_init(&cs->swap_lock);
 #endif /* CONFIG_SWAP */
@@ -3541,20 +3539,20 @@ cpuset_css_alloc(struct cgroup_subsys_state *parent_css)
 #ifdef CONFIG_SWAP
 static int copy_parent_swap_lists(struct cpuset *cs, struct cpuset *parent)
 {
-	struct plist_head *allowed_swaps;
+	struct plist_head *requested_swaps;
 	int ret = 0;
 
 	spin_lock_irq(&callback_lock); // TODO: Understand irqsave
 
 	if (parent == &top_cpuset)
-		 allowed_swaps = &parent->effective_swaps_head;
+		 requested_swaps = &parent->effective_swaps_head;
 	else
-		 allowed_swaps = &parent->swaps_allowed_head;
+		 requested_swaps = &parent->swaps_requested_head;
 
 	spin_unlock_irq(&callback_lock);
 
-	if ((ret = copy_swap_list(&cs->swaps_allowed_head,
-					allowed_swaps, &parent->swap_lock)))
+	if ((ret = copy_swap_list(&cs->swaps_requested_head,
+					requested_swaps, &parent->swap_lock)))
 		 goto out;
 	if ((ret = copy_swap_list(&cs->effective_swaps_head,
 					&parent->effective_swaps_head,
@@ -3693,7 +3691,7 @@ static void cpuset_css_offline(struct cgroup_subsys_state *css)
 #ifdef CONFIG_SWAP
 	spin_lock_irq(&cs->swap_lock);
 	put_swap_list(&cs->effective_swaps_head);
-	put_swap_list(&cs->swaps_allowed_head);
+	put_swap_list(&cs->swaps_requested_head);
 	spin_unlock_irq(&cs->swap_lock);
 #endif
 
