@@ -2286,7 +2286,7 @@ static int add_all_swap(struct cpuset *cs)
  * When the swaps_allowed_head of a cpuset is changed, the effective swap lists
  * of this cpuset and all its descendants need to be updated.
  *
- * Call with cpuset_rwsem and callback_lock held.
+ * Context: Call with cpuset_rwsem and callback_lock held.
  */
 static void remove_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
@@ -2388,8 +2388,7 @@ void cpuset_put_current_swap_list()
 /*
  * cpuset_enable_swap_info - expose a new swap_info to the cpuset controller
  *
- * (TODO: Why caller has to hold reference to si?).
- * The caller must hold a reference to @si. This function may sleep.
+ * Context: This function may sleep.
  */
 int cpuset_enable_swap_info(struct swap_info_struct *si)
 {
