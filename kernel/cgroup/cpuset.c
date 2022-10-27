@@ -2188,8 +2188,8 @@ static int __add_swap_hier(struct cpuset *subtree_root,
 		add_to_swap_list(si, &descendant->effective_swaps_head,
 				swap_nodes.nodes[i++]);
 
-		if (parent_cs(descendant) == &top_cpuset
-				|| in_swap_list(si, &descendant->swaps_allowed_head))
+		if (in_swap_list(si, &descendant->swaps_allowed_head)
+			 || parent_cs(descendant) == &top_cpuset)
 			 add_to_swap_list(si, &descendant->swaps_allowed_head,
 					 swap_nodes.nodes[i++]);
 
