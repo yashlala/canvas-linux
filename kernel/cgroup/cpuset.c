@@ -2177,6 +2177,8 @@ static int __add_swap_hier(struct cpuset *subtree_root,
 			continue;
 		}
 
+		BUG_ON(i >= swap_nodes.len);
+
 		spin_lock_irqsave(&descendant->swap_lock, flags);
 
 		/*
@@ -2194,7 +2196,6 @@ static int __add_swap_hier(struct cpuset *subtree_root,
 		spin_unlock_irqrestore(&descendant->swap_lock, flags);
 	}
 
-	// TODO: This is for debugging. Remove this later.
 	BUG_ON(i != swap_nodes.len);
 
 	rcu_read_unlock();
