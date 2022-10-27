@@ -2196,7 +2196,9 @@ static int __add_swap_hier(struct cpuset *subtree_root,
 		spin_unlock_irqrestore(&descendant->swap_lock, flags);
 	}
 
-	BUG_ON(i != swap_nodes.len);
+	BUG_ON(i != swap_nodes.len); // TODO: Should we put a warning here
+				     // instead? Mem leak, but should let
+				     // kernel continue.
 
 	rcu_read_unlock();
 
