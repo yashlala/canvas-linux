@@ -2058,16 +2058,25 @@ struct swap_node_list {
 };
 
 /*
- * preallocate_swap_nodes - allocate swap_node s to add to a subtree
+ * preallocate_swap_nodes - allocate swap_nodes to add to a subtree
  *
- * This function does not allocate a swap node for root of the cpuset subtree.
+ * @subtree_root: the root of the cpuset subtree to consider
+ * @si:           the swap partition that will be added to the subtree
+ * @ret:          used as a return value, set to a list of preallocated
+ *                swap_nodes
+ *
+ * When new swap devices are made available, the requested and effective swap
+ * lists of a cpuset's descendants need to be updated. These swap lists must be
+ * traversed under rcu_read_lock. Because GFP_NOWAIT allocations are likely to
+ * fail under memory pressure (which is when swap is most needed), we
+ * preallocate swap nodes in this function.
+ *
  * The caller must free @ret.
+ * This function doesn't touch @subtree_root, only its descendants.
  *
- * @cpuset: the root of the cpuset cgroup subtree (skipped when allocating)
- * @si:     the swap partition that will be added to the subtree
- * @ret:    treated as a return value, set to a list of
+ * Context: This function may sleep.
  */
-static int preallocate_swap_nodes(struct cpuset *cpuset,
+static int preallocate_swap_nodes(struct cpuset *subtree_root,
 		struct swap_info_struct *si, struct swap_node_list *ret)
 {
 	struct cpuset *descendant;
@@ -2078,8 +2087,8 @@ static int preallocate_swap_nodes(struct cpuset *cpuset,
 	ret->len = 0;
 
 	rcu_read_lock();
-	cpuset_for_each_descendant_pre(descendant, pos, cpuset) {
-		if (descendant == cpuset)
+	cpuset_for_each_descendant_pre(descendant, pos, subtree_root) {
+		if (descendant == subtree_root)
 			 continue;
 
 		/* Don't add swap partitions to locked subtrees. */
@@ -2088,8 +2097,12 @@ static int preallocate_swap_nodes(struct cpuset *cpuset,
 			continue;
 		}
 
-		spin_lock_irqsave(&descendant->swap_lock, flags);
-		if (in_swap_list(si, &descendant->swaps_allowed_head))
+		spin_lock_irqsave(&descendant->swap_lock, flags); // TODO: No
+								  // irqs
+								  // needed
+								  // here, dawg
+		if (parent_cs(descendant) == &top_cpuset
+				|| in_swap_list(si, &descendant->swaps_allowed_head))
 			 ret->len++;
 		spin_unlock_irqrestore(&descendant->swap_lock, flags);
 
@@ -2173,7 +2186,6 @@ static int __add_swap_hier(struct cpuset *subtree_root,
 		add_to_swap_list(si, &descendant->effective_swaps_head,
 				swap_nodes.nodes[i++]);
 
-		// Aha. This fails for root. Check if parent is root.
 		if (parent_cs(descendant) == &top_cpuset
 				|| in_swap_list(si, &descendant->swaps_allowed_head))
 			 add_to_swap_list(si, &descendant->swaps_allowed_head,
