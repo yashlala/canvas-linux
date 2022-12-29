@@ -75,45 +75,49 @@ Common Problems:
 - Phase 3: Functionality
   1. [X] Reimplement actual plist functionality
   2. [X] Implement swapon and swapoff
-  3. Set up locks. We ignored race conditions until now; finalize locking,
-     refcounts, etc. Remember to compile with `CONFIG_DEBUG_ATOMIC_SLEEP`.
+  3. [X] Set up locks. We ignored race conditions until now; finalize locking,
+	 refcounts, etc. Remember to compile with `CONFIG_DEBUG_ATOMIC_SLEEP`.
      - [X] Implement locking
      - [X] Fix refcount bugs
-  5. [ ] Thorough robustness testing (in particular 3.2 and 3.3); couldn't
-         test 3.3 before because of refcount issues.
-  6. [ ] Set up edge cases:
-     - Where should shared memory pages be charged?
-     - Handle the case where `CONFIG_CPUSETS` isn't enabled. This isn't too
-       hard; if you create versions of the existing cpuset swaps API in
-       "cpuset.h" that redirect to a shared global swap list, then the
-       swapfile.c logic doesn't need to be changed at all.
-  7. [ ] Kernel-internal API changes:
+  4. [X] Move "`swap_info_struct` is full" to the `swap_info_struct` structure
+	 itself. Right now, there's an "avail" list for non-full swap
+	 partitions, and a "active" list for all swap partitions. Synchronizing
+	 adds and removes to an "avail" list for each cgroup will be too
+	 expensive! So move the "full or not" logic to the swap info struct
+	 data itself. Our cgroups can check when they receive an `si`, and skip
+	 the partition.
+  5. [X] Set up the "+all" magic swapfile keyword. See userspace API
+	 documentation for more details.
+  6. [X] Thorough robustness testing (in particular 3.2 and 3.3); couldn't test
+	 3.3 before because of refcount issues.
+  7. Set up edge cases:
+     - [X] Handle the case where `CONFIG_CPUSETS` isn't enabled. This isn't too
+	   hard; if you create versions of the existing cpuset swaps API in
+	   "cpuset.h" that redirect to a shared global swap list, then the
+	   swapfile.c logic doesn't need to be changed at all. ifndef the whole
+	   thing, then do an inline get of the vars? that's an idea!
+     - [X] Handle `!CONFIG_SWAP`. Remember conditional includes in struct
+	   cpuset.
+     - [X] Handle `!CONFIG_CPUSETS` AND `!CONFIG_SWAP`.
+     - [ ] Test previous three configurations
+     - [ ] Where should shared memory pages be charged?
+  8. [ ] Kernel-internal API changes:
      - Create substitutes for the formerly global "nr_swap_pages"
-  8. [ ] Move "`swap_info_struct` is full" to the `swap_info_struct` structure
-         itself. Right now, there's an "avail" list for non-full swap
-         partitions, and a "active" list for all swap partitions. Synchronizing
-         adds and removes to an "avail" list for each cgroup will be too
-         expensive! So move the "full or not" logic to the swap info struct
-         data itself. Our cgroups can check when they receive an `si`, and skip
-         the partition.
-  9. [ ] Set up the "+all" magic swapfile keyword. See userspace API
-         documentation for more details.
-  10. [ ] Refactor swap accessor paths to use same `alloc_trial` function path
-         as the cpumask and nodemask style functions. We have our own hacky
-         versions of these right now.
+  9. [ ] Refactor swap accessor paths to use same `alloc_trial` function path
+	 as the cpumask and nodemask style functions. We have our own hacky
+	 versions of these right now.
 
 - Phase 4: Polish
-  1. [ ] Implement `swap_exclusive` iface file. It's not needed for
-	 functionality, but it could be convenient.
-  2. [ ] Clean up code, remove/polish comments
-  3. [ ] Address the issues in commit f26411821d9b.
-  4. [ ] Update documentation to reflect final API
-  5. [ ] Address all TODOs in code.
-  6. [ ] Send patchset to kernel mailing list
+  1. [ ] Clean up code, remove/polish comments
+  2. [ ] Address the issues in commit f26411821d9b.
+  3. [ ] Update documentation to reflect final API
+  4. [ ] Address all TODOs in code.
+  5. [ ] Send patchset to kernel mailing list
 
 - Phase ?: Future work?
   1. [ ] Migrate already-swapped pages to per-cgroup swap partitions.
   2. [ ] Per-cgroup swap cache segregation.
+  3. [ ] Fix that annoying nokaslr pass through bug.
 
 ### Lingering Problems
 
