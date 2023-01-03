@@ -2183,7 +2183,8 @@ static int __add_swap_hier(struct cpuset *subtree_root,
 
 		/*
 		 * The enclosing function is called only if @si is not in
-		 * @cpuset's effective swap list. Skip that check.
+		 * @cpuset's effective swap list, so we can skip that check
+		 * for @cpuset's descendants.
 		 */
 		add_to_swap_list(si, &descendant->effective_swaps_head,
 				swap_nodes.nodes[i++]);
