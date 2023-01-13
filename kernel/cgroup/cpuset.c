@@ -2095,19 +2095,16 @@ static int preallocate_swap_nodes(struct cpuset *subtree_root,
 		if (descendant == subtree_root)
 			 continue;
 
-		/* Don't add swap partitions to locked subtrees. */
-		if (is_swap_subtree_locked(descendant)) {
+		spin_lock_irqsave(&descendant->swap_lock, flags); // TODO:
+								  // sus mb+irq
+		if (is_swap_subtree_locked(descendant)
+				|| !in_swap_list(si, &descendant->swaps_allowed_head)) {
+			spin_unlock_irqrestore(&descendant->swap_lock, flags);
+			/* skip this subtree */
 			pos = css_rightmost_descendant(pos);
 			continue;
 		}
 
-		spin_lock_irqsave(&descendant->swap_lock, flags); // TODO: No
-								  // irqs
-								  // needed
-								  // here, dawg
-		if (parent_cs(descendant) == &top_cpuset
-				|| in_swap_list(si, &descendant->swaps_allowed_head))
-			 ret->len++;
 		spin_unlock_irqrestore(&descendant->swap_lock, flags);
 
 		/*
@@ -2137,9 +2134,8 @@ static int preallocate_swap_nodes(struct cpuset *subtree_root,
 
 	return 0;
 err:
-	for (i = 0; i < ret->len; i++) {
+	for (i = 0; i < ret->len; i++)
 		kfree(ret->nodes[i]);
-	}
 	kfree(ret);
 	return -ENOMEM;
 }
@@ -2176,28 +2172,26 @@ static int __add_swap_hier(struct cpuset *subtree_root,
 		if (descendant == subtree_root)
 			 continue;
 
-		/* Don't add swap partitions to locked subtrees. */
-		if (is_swap_subtree_locked(descendant)) {
+		spin_lock_irqsave(&descendant->swap_lock, flags); // sus membar
+		if (is_swap_subtree_locked(descendant)
+				|| !in_swap_list(si, &descendant->swaps_allowed_head)) {
+			spin_unlock_irqrestore(&descendant->swap_lock, flags);
+			/* skip this subtree */
 			pos = css_rightmost_descendant(pos);
 			continue;
 		}
 
 		BUG_ON(i >= swap_nodes.len);
 
-		spin_lock_irqsave(&descendant->swap_lock, flags);
-
 		/*
-		 * The enclosing function is called only if @si is not in
-		 * @cpuset's effective swap list, so we can skip that check
-		 * for @cpuset's descendants.
+		 * This function is called only if @si is not in @cpuset's
+		 * allowed swaps list. This implies that no child has @si in
+		 * its effective_swaps_head yet; so we unconditionally
+		 * preallocate a swap_node here for the child's effective_swaps
+		 * list.
 		 */
 		add_to_swap_list(si, &descendant->effective_swaps_head,
 				swap_nodes.nodes[i++]);
-
-		if (in_swap_list(si, &descendant->swaps_allowed_head)
-			 || parent_cs(descendant) == &top_cpuset)
-			 add_to_swap_list(si, &descendant->swaps_allowed_head,
-					 swap_nodes.nodes[i++]);
 
 		spin_unlock_irqrestore(&descendant->swap_lock, flags);
 	}
