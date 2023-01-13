@@ -2257,17 +2257,22 @@ static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 	spin_lock_irqsave(&cpuset->swap_lock, flags);
 	add_to_swap_list(si, &cpuset->swaps_allowed_head, new);
 
-	if (in_effective_swaps(si, parent)) {
-		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
-		new = kmalloc(sizeof(*new), GFP_KERNEL);
-		if (!new) {
-			remove_from_swap_list(si, &cpuset->swaps_allowed_head);
-			return -ENOMEM;
-		}
-		spin_lock_irqsave(&cpuset->swap_lock, flags);
-		add_to_swap_list(si, &cpuset->effective_swaps_head, new);
-	}
+	spin_unlock_irqrestore(&cpuset->swap_lock, flags); // sus
 
+	// TODO: Are we neglecting to lock the parent here? Does it matter if
+	// we have cpuset_rwsem locked anyways? ffs figure locks out.
+	// Also is this one of the places where we need a memory barrier?
+	// checking a locked val in a conditional. check "sus" lock.
+	if (!in_effective_swaps(si, parent))
+		return 0;
+
+	new = kmalloc(sizeof(*new), GFP_KERNEL);
+	if (!new) {
+		remove_from_swap_list(si, &cpuset->swaps_allowed_head);
+		return -ENOMEM;
+	}
+	spin_lock_irqsave(&cpuset->swap_lock, flags);
+	add_to_swap_list(si, &cpuset->effective_swaps_head, new);
 	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 
 	return __add_swap_hier(cpuset, si);
