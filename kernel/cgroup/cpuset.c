@@ -2153,8 +2153,8 @@ err:
  * lists of a cpuset's descendants need to be updated. This function doesn't
  * touch @subtree_root, only its descendants.
  *
- * The caller must hold cpuset_rwsem and a reference to @si. This function can
- * sleep.
+ * Context: The caller must hold cpuset_rwsem and a reference to @si. This
+ * function can sleep.
  */
 static int __add_swap_hier(struct cpuset *subtree_root,
 		struct swap_info_struct *si)
