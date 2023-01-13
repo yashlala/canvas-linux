@@ -2218,10 +2218,14 @@ static int __add_swap_hier(struct cpuset *subtree_root,
  * @cs:  the cpuset to consider
  * @si:  the swap partition to add
  *
- * When configured swap list is changed, the effective swap lists of this
- * cpuset and all its descendants need to be updated.
+ * When a user adds a swap device to a cgroup's swap list, the effective swap
+ * lists of this cpuset and all its descendants need to be updated.
  *
- * Call with cpuset_rwsem held. This function may sleep.
+ * The root cpuset uses swaps_allowed_head and effective_swaps_head differently
+ * than nonroot cpusets. But this function isn't called on the root cpuset, so
+ * it doesn't handle that case.
+ *
+ * Context: Call with cpuset_rwsem held. This function may sleep.
  */
 static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 {
@@ -2245,26 +2249,15 @@ static int add_swap(struct cpuset *cpuset, struct swap_info_struct *si)
 		return 0;
 	}
 
-	/* The root cpuset doesn't use swaps_allowed_head at all. */
-	if (parent) {
-		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
-		new = kmalloc(sizeof(*new), GFP_KERNEL);
-		if (!new)
-			 return -ENOMEM;
-		spin_lock_irqsave(&cpuset->swap_lock, flags);
 
-		add_to_swap_list(si, &cpuset->swaps_allowed_head, new);
-	}
+	spin_unlock_irqrestore(&cpuset->swap_lock, flags);
+	new = kmalloc(sizeof(*new), GFP_KERNEL);
+	if (!new)
+		 return -ENOMEM;
+	spin_lock_irqsave(&cpuset->swap_lock, flags);
+	add_to_swap_list(si, &cpuset->swaps_allowed_head, new);
 
-	/*
-	 * The root cpuset uses effective_swaps_head as a list of all swappable
-	 * partitions in the system.
-	 *
-	 * TODO: Should the above comment really be true? Do we still need
-	 * a global swap_avail_list, or is it redundant with swap_active_head
-	 * now?
-	 */
-	if (!parent || in_effective_swaps(si, parent)) {
+	if (in_effective_swaps(si, parent)) {
 		spin_unlock_irqrestore(&cpuset->swap_lock, flags);
 		new = kmalloc(sizeof(*new), GFP_KERNEL);
 		if (!new) {
