@@ -323,6 +323,10 @@ static struct cpuset top_cpuset = {
 	.partition_root_state = PRS_ENABLED,
 #ifdef CONFIG_SWAP
 	.swaps_allowed_head = PLIST_HEAD_INIT(top_cpuset.swaps_allowed_head),
+	/*
+	 * top_cpuset.effective_swaps_head is the global list of swap devices.
+	 * TODO: Is this needed, or is it redundant with swap_active_head?
+	 */
 	.effective_swaps_head = PLIST_HEAD_INIT(top_cpuset.effective_swaps_head),
 #endif /* CONFIG_SWAP */
 };
@@ -2109,8 +2113,9 @@ static int preallocate_swap_nodes(struct cpuset *subtree_root,
 		/*
 		 * This function is called only if @si is not in @cpuset's
 		 * allowed swaps list. This implies that no child has @si in
-		 * its effective_swaps_head yet, so we unconditionally allocate
-		 * it here.
+		 * its effective_swaps_head yet; so we unconditionally
+		 * preallocate a swap_node here for the child's effective_swaps
+		 * list.
 		 */
 		ret->len++;
 
@@ -3162,10 +3167,10 @@ static ssize_t swaps_write(struct kernfs_open_file *of, char *buf,
 	percpu_down_write(&cpuset_rwsem);
 
 	if (enable) {
-			if ((err = add_swap(cs, si)))
-					goto out_unlock;
+		if ((err = add_swap(cs, si)))
+			 goto out_unlock;
 	} else {
-			remove_swap(cs, si);
+		remove_swap(cs, si);
 	}
 
 out_unlock:
