@@ -2385,7 +2385,7 @@ void cpuset_get_current_swap_list(struct plist_head **swap_list,
 		rcu_read_unlock();
 }
 
-void cpuset_put_current_swap_list()
+void cpuset_put_current_swap_list(void)
 {
 		struct cpuset *cs;
 
