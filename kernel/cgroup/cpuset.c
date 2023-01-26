@@ -2373,8 +2373,8 @@ static int register_swap_info_hier(struct cpuset *subtree_root,
 	struct cgroup_subsys_state *pos;
 	struct swap_node **swap_nodes;
 	unsigned long flags;
-	int num_nodes = 0;
-	int num_assigned = 0;
+	int nodes_needed = 0;
+	int nodes_assigned = 0;
 
 	/*
 	 * GFP_NOWAIT allocations are likely to fail under memory pressure
@@ -2390,13 +2390,15 @@ static int register_swap_info_hier(struct cpuset *subtree_root,
 			continue;
 		}
 		/* preallocate for swaps_allowed and swaps_effective */
-		num_nodes += 2;
+		nodes_needed += 2;
 	}
 	rcu_read_unlock();
 
-	swap_nodes = alloc_swap_node_list(num_nodes);
+	swap_nodes = alloc_swap_node_list(nodes_needed);
 	if (IS_ERR(swap_nodes))
 		 return PTR_ERR(swap_nodes);
+
+	pr_warn("nodes_needed=%d\nassigning nodes: ", nodes_needed);
 
 	rcu_read_lock();
 	cpuset_for_each_descendant_pre(descendant, pos, subtree_root) {
@@ -2408,21 +2410,23 @@ static int register_swap_info_hier(struct cpuset *subtree_root,
 			continue;
 		}
 
-		WARN_ON(num_assigned >= num_nodes);
+		// WARN_ON(nodes_assigned >= nodes_needed);
 
 		// TODO: probably don't need irqsave, see other locking todos.
 		spin_lock_irqsave(&descendant->swap_lock, flags);
+		pr_warn("%d (%px)\n", nodes_assigned, swap_nodes[nodes_assigned]);
 		add_to_swap_list(si, &descendant->swaps_allowed_head,
-				swap_nodes[num_assigned++]);
+				swap_nodes[nodes_assigned++]);
+		pr_warn("%d (%px)\n", nodes_assigned, swap_nodes[nodes_assigned]);
 		add_to_swap_list(si, &descendant->effective_swaps_head,
-				swap_nodes[num_assigned++]);
+				swap_nodes[nodes_assigned++]);
 		spin_unlock_irqrestore(&descendant->swap_lock, flags);
 	}
 	rcu_read_unlock();
 
-	WARN_ON_ONCE(num_assigned != num_nodes); // TODO: pr_warn? What's the
-						 // standard policy for
-						 // reporting a memory leak?
+	// WARN_ON_ONCE(nodes_assigned != nodes_needed); // TODO: pr_warn? What's the
+	// 					      // standard policy for
+	// 					      // reporting a memory leak?
 	kfree(swap_nodes);
 	return 0;
 }
