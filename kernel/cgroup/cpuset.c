@@ -2358,6 +2358,8 @@ void cpuset_put_current_swap_list(void)
 		css_put(&cs->css);
 }
 
+#pragma GCC push_options
+#pragma GCC optimize ("-O0")
 /*
  * register_swap_info_hier - Add a new swap_info to cpuset swap_lists
  *
@@ -2500,6 +2502,7 @@ void cpuset_unregister_swap_info(struct swap_info_struct *si)
 	rcu_read_unlock();
 	percpu_up_write(&cpuset_rwsem);
 }
+#pragma GCC pop_options
 
 #endif /* CONFIG_SWAP */
 
