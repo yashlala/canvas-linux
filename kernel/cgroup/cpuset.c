@@ -2076,7 +2076,7 @@ static struct swap_node **alloc_swap_node_list(int len)
 		}
 	}
 
-	return 0;
+	return ret;
 err:
 	for (i = 0; i < err_i; i++)
 		 kfree(ret[i]);
