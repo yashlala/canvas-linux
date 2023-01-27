@@ -2358,15 +2358,14 @@ void cpuset_put_current_swap_list(void)
 		css_put(&cs->css);
 }
 
-#pragma GCC push_options
-#pragma GCC optimize ("-O0")
+// TODO: remove noinline
 /*
  * register_swap_info_hier - Add a new swap_info to cpuset swap_lists
  *
  * @subtree_root:  the root of the cpuset subtree to consider
  * @si:            the swap partition to add
  */
-static int register_swap_info_hier(struct cpuset *subtree_root,
+static noinline int register_swap_info_hier(struct cpuset *subtree_root,
 		struct swap_info_struct *si)
 {
 	struct cpuset *descendant;
@@ -2506,7 +2505,6 @@ void cpuset_unregister_swap_info(struct swap_info_struct *si)
 	rcu_read_unlock();
 	percpu_up_write(&cpuset_rwsem);
 }
-#pragma GCC pop_options
 
 #endif /* CONFIG_SWAP */
 
